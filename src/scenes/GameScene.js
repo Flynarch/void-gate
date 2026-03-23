@@ -1,4 +1,4 @@
-import Phaser from 'phaser';
+import Phaser from "phaser";
 
 const TILE = 16;
 const GW = 30;
@@ -16,15 +16,129 @@ const PATH_MAX_STEPS = 50;
 const PATH_MAX_EXPANSIONS = 2500;
 const PATH_CACHE_TURNS = 3;
 const MOVE_TWEEN_MS = 80;
-const MOVE_EASE = 'Power1';
+const MOVE_EASE = "Power1";
 const SHAKE_HIT_MS = 150;
 const SHAKE_HIT_INTENSITY = 0.008;
 const SHAKE_DEATH_MS = 400;
 const SHAKE_DEATH_INTENSITY = 0.02;
 
+const ITEMS = {
+  health_potion: {
+    id: "health_potion",
+    name: "Health Potion",
+    char: "!",
+    color: "#ff4444",
+    desc: "Heals 20 HP",
+    rarity: "common",
+    onUse: (scene) => {
+      const heal = Math.min(20, scene.playerMaxHp - scene.playerHp);
+      scene.playerHp += heal;
+      scene.spawnDamageNumber(scene.px, scene.py, `+${heal} HP`, "#44ff44");
+      scene.refreshHUD();
+      return true;
+    },
+  },
+  big_potion: {
+    id: "big_potion",
+    name: "Big Potion",
+    char: "!",
+    color: "#ff88ff",
+    desc: "Heals 50 HP",
+    rarity: "uncommon",
+    onUse: (scene) => {
+      const heal = Math.min(50, scene.playerMaxHp - scene.playerHp);
+      scene.playerHp += heal;
+      scene.spawnDamageNumber(scene.px, scene.py, `+${heal} HP`, "#44ff44");
+      scene.refreshHUD();
+      return true;
+    },
+  },
+  sword: {
+    id: "sword",
+    name: "Iron Sword",
+    char: "/",
+    color: "#ccddff",
+    desc: "+3 ATK",
+    rarity: "common",
+    onUse: (scene) => {
+      scene.playerAtk += 3;
+      scene.spawnDamageNumber(scene.px, scene.py, "+3 ATK", "#ccddff");
+      scene.refreshHUD();
+      return true;
+    },
+  },
+  shield: {
+    id: "shield",
+    name: "Buckler",
+    char: "]",
+    color: "#88aaff",
+    desc: "+2 DEF",
+    rarity: "common",
+    onUse: (scene) => {
+      scene.playerDef += 2;
+      scene.spawnDamageNumber(scene.px, scene.py, "+2 DEF", "#88aaff");
+      scene.refreshHUD();
+      return true;
+    },
+  },
+  gold_coin: {
+    id: "gold_coin",
+    name: "Gold",
+    char: "$",
+    color: "#f0c040",
+    desc: "+10 Gold",
+    rarity: "common",
+    onUse: (scene) => {
+      scene.playerGold += 10;
+      scene.spawnDamageNumber(scene.px, scene.py, "+10 Gold", "#f0c040");
+      scene.refreshHUD();
+      return true;
+    },
+  },
+  max_up: {
+    id: "max_up",
+    name: "Life Crystal",
+    char: "♥",
+    color: "#ff4488",
+    desc: "+10 Max HP",
+    rarity: "rare",
+    onUse: (scene) => {
+      scene.playerMaxHp += 10;
+      scene.playerHp = Math.min(scene.playerHp + 10, scene.playerMaxHp);
+      scene.spawnDamageNumber(scene.px, scene.py, "+10 MAX HP", "#ff4488");
+      scene.refreshHUD();
+      return true;
+    },
+  },
+};
+
+const FLOOR_LOOT_TABLE = [
+  { id: "health_potion", weight: 40 },
+  { id: "big_potion", weight: 15 },
+  { id: "sword", weight: 20 },
+  { id: "shield", weight: 20 },
+  { id: "gold_coin", weight: 50 },
+  { id: "max_up", weight: 8 },
+];
+
+function rollLoot() {
+  const total = FLOOR_LOOT_TABLE.reduce((s, e) => s + e.weight, 0);
+  let r = Math.random() * total;
+  for (const entry of FLOOR_LOOT_TABLE) {
+    r -= entry.weight;
+    if (r <= 0) return { ...ITEMS[entry.id] };
+  }
+  return { ...ITEMS["health_potion"] };
+}
+
 function roomOverlaps(rooms, rx, ry, rw, rh) {
   for (const r of rooms) {
-    if (rx < r.x + r.w + 1 && rx + rw + 1 > r.x && ry < r.y + r.h + 1 && ry + rh + 1 > r.y) {
+    if (
+      rx < r.x + r.w + 1 &&
+      rx + rw + 1 > r.x &&
+      ry < r.y + r.h + 1 &&
+      ry + rh + 1 > r.y
+    ) {
       return true;
     }
   }
@@ -96,7 +210,7 @@ function generateDungeon(rng) {
     return { grid, rooms };
   }
 
-  throw new Error('Dungeon generation failed');
+  throw new Error("Dungeon generation failed");
 }
 
 function manhattan(ax, ay, bx, by) {
@@ -220,11 +334,11 @@ function findPath(sx, sy, tx, ty, isWalkable) {
 
 export class GameScene extends Phaser.Scene {
   constructor() {
-    super('GameScene');
+    super("GameScene");
   }
 
   create() {
-    this.cameras.main.setBackgroundColor('#0a0a0f');
+    this.cameras.main.setBackgroundColor("#0a0a0f");
     this.floor = 1;
     this.turn = 1;
     this.enemiesSlain = 0;
@@ -238,14 +352,21 @@ export class GameScene extends Phaser.Scene {
     this.isTransitioningFloor = false;
     this.isGameOver = false;
     this.playerStatPoints = 0;
+    this.playerGold = 0;
+    this.groundItems = [];
+    this.floorStates = new Map();
 
     this.tileSprites = [];
     this.enemies = [];
     this.fogLayer = this.add.graphics();
     this.stairs = null;
+    this.stairsUp = null;
     this.stairsFloatHint = null;
 
-    this.overlayFade = this.add.rectangle(240, 240, 480, 480, 0x000000, 0).setScrollFactor(0).setDepth(300);
+    this.overlayFade = this.add
+      .rectangle(240, 240, 480, 480, 0x000000, 0)
+      .setScrollFactor(0)
+      .setDepth(300);
 
     this.uiHpBarBg = this.add.graphics().setScrollFactor(0).setDepth(100);
     this.uiHpBarBg.fillStyle(0x222222, 1);
@@ -257,49 +378,81 @@ export class GameScene extends Phaser.Scene {
     this.uiXpBar = this.add.graphics().setScrollFactor(0).setDepth(101);
 
     this.uiHpText = this.add
-      .text(10, 34, '', { fontFamily: 'monospace', fontSize: '11px', color: '#ffffff' })
+      .text(10, 34, "", {
+        fontFamily: "monospace",
+        fontSize: "11px",
+        color: "#ffffff",
+      })
       .setScrollFactor(0)
       .setDepth(102);
     this.uiAtkText = this.add
-      .text(10, 48, '', { fontFamily: 'monospace', fontSize: '11px', color: '#cccccc' })
+      .text(10, 48, "", {
+        fontFamily: "monospace",
+        fontSize: "11px",
+        color: "#cccccc",
+      })
       .setScrollFactor(0)
       .setDepth(102);
     this.uiDefText = this.add
-      .text(10, 62, '', { fontFamily: 'monospace', fontSize: '11px', color: '#cccccc' })
+      .text(10, 62, "", {
+        fontFamily: "monospace",
+        fontSize: "11px",
+        color: "#cccccc",
+      })
       .setScrollFactor(0)
       .setDepth(102);
     this.uiTurnText = this.add
-      .text(10, 76, 'TURN 1', { fontFamily: 'monospace', fontSize: '11px', color: '#aaaaaa' })
+      .text(10, 76, "TURN 1", {
+        fontFamily: "monospace",
+        fontSize: "11px",
+        color: "#aaaaaa",
+      })
       .setScrollFactor(0)
       .setDepth(100);
+    this.uiGoldText = this.add
+      .text(10, 90, "Gold: 0", {
+        fontFamily: "monospace",
+        fontSize: "11px",
+        color: "#f0c040",
+      })
+      .setScrollFactor(0)
+      .setDepth(102);
     this.uiFloorLabel = this.add
-      .text(470, 10, 'FLOOR 1  LV 1', { fontFamily: 'monospace', fontSize: '12px', color: '#ffffff' })
+      .text(470, 10, "FLOOR 1  LV 1", {
+        fontFamily: "monospace",
+        fontSize: "12px",
+        color: "#ffffff",
+      })
       .setOrigin(1, 0)
       .setScrollFactor(0)
       .setDepth(100);
     this.uiProfileBtn = this.add
-      .text(470, 470, '[P] PROFILE', {
-        fontFamily: 'monospace',
-        fontSize: '11px',
-        color: '#9988cc',
-        backgroundColor: '#12121f',
+      .text(470, 470, "[P] PROFILE", {
+        fontFamily: "monospace",
+        fontSize: "11px",
+        color: "#9988cc",
+        backgroundColor: "#12121f",
         padding: { x: 6, y: 3 },
       })
       .setOrigin(1, 1)
       .setScrollFactor(0)
       .setDepth(102)
       .setInteractive({ useHandCursor: true });
-    this.uiProfileBtn.on('pointerdown', (pointer, localX, localY, event) => {
+    this.uiProfileBtn.on("pointerdown", (pointer, localX, localY, event) => {
       if (event) event.stopPropagation();
       this.toggleProfileOverlay();
     });
-    this.uiProfileBtn.on('pointerover', () => this.uiProfileBtn.setStyle({ color: '#f0c040' }));
-    this.uiProfileBtn.on('pointerout', () => this.uiProfileBtn.setStyle({ color: '#9988cc' }));
+    this.uiProfileBtn.on("pointerover", () =>
+      this.uiProfileBtn.setStyle({ color: "#f0c040" }),
+    );
+    this.uiProfileBtn.on("pointerout", () =>
+      this.uiProfileBtn.setStyle({ color: "#9988cc" }),
+    );
     this.uiProfileHint = this.add
-      .text(470, 454, 'Press P', {
-        fontFamily: 'monospace',
-        fontSize: '10px',
-        color: '#b8a8e8',
+      .text(470, 454, "Press P", {
+        fontFamily: "monospace",
+        fontSize: "10px",
+        color: "#b8a8e8",
       })
       .setOrigin(1, 1)
       .setScrollFactor(0)
@@ -313,11 +466,11 @@ export class GameScene extends Phaser.Scene {
       onComplete: () => this.uiProfileHint.destroy(),
     });
     this.uiProfileBadge = this.add
-      .text(470, 452, '!', {
-        fontFamily: 'monospace',
-        fontSize: '13px',
-        color: '#ff4444',
-        fontStyle: 'bold',
+      .text(470, 452, "!", {
+        fontFamily: "monospace",
+        fontSize: "13px",
+        color: "#ff4444",
+        fontStyle: "bold",
       })
       .setOrigin(1, 1)
       .setScrollFactor(0)
@@ -331,10 +484,10 @@ export class GameScene extends Phaser.Scene {
       .setVisible(false)
       .setStrokeStyle(1, 0x4a3a7a);
     this.profileOverlayTitle = this.add
-      .text(240, 110, 'CHARACTER', {
-        fontFamily: 'monospace',
-        fontSize: '16px',
-        color: '#f0c040',
+      .text(240, 110, "CHARACTER", {
+        fontFamily: "monospace",
+        fontSize: "16px",
+        color: "#f0c040",
       })
       .setOrigin(0.5)
       .setScrollFactor(0)
@@ -342,27 +495,27 @@ export class GameScene extends Phaser.Scene {
       .setVisible(false);
     this.profileStatTexts = {};
     const statRows = [
-      { key: 'hp', label: 'MAX HP', y: 150 },
-      { key: 'atk', label: 'ATK', y: 175 },
-      { key: 'def', label: 'DEF', y: 200 },
-      { key: 'level', label: 'LEVEL', y: 225 },
-      { key: 'pts', label: 'POINTS', y: 255 },
+      { key: "hp", label: "MAX HP", y: 150 },
+      { key: "atk", label: "ATK", y: 175 },
+      { key: "def", label: "DEF", y: 200 },
+      { key: "level", label: "LEVEL", y: 225 },
+      { key: "pts", label: "POINTS", y: 255 },
     ];
     statRows.forEach((row) => {
       const lbl = this.add
         .text(140, row.y, `${row.label}:`, {
-          fontFamily: 'monospace',
-          fontSize: '13px',
-          color: '#9988cc',
+          fontFamily: "monospace",
+          fontSize: "13px",
+          color: "#9988cc",
         })
         .setScrollFactor(0)
         .setDepth(201)
         .setVisible(false);
       const val = this.add
-        .text(240, row.y, '—', {
-          fontFamily: 'monospace',
-          fontSize: '13px',
-          color: '#ffffff',
+        .text(240, row.y, "—", {
+          fontFamily: "monospace",
+          fontSize: "13px",
+          color: "#ffffff",
         })
         .setScrollFactor(0)
         .setDepth(201)
@@ -370,11 +523,11 @@ export class GameScene extends Phaser.Scene {
       this.profileStatTexts[row.key] = { lbl, val };
     });
     this.profileBtnAtk = this.add
-      .text(240, 290, '[+] SPEND ON ATK  (+2)', {
-        fontFamily: 'monospace',
-        fontSize: '12px',
-        color: '#f0c040',
-        backgroundColor: '#1a1a2e',
+      .text(240, 290, "[+] SPEND ON ATK  (+2)", {
+        fontFamily: "monospace",
+        fontSize: "12px",
+        color: "#f0c040",
+        backgroundColor: "#1a1a2e",
         padding: { x: 8, y: 5 },
       })
       .setOrigin(0.5)
@@ -383,11 +536,11 @@ export class GameScene extends Phaser.Scene {
       .setVisible(false)
       .setInteractive({ useHandCursor: true });
     this.profileBtnDef = this.add
-      .text(240, 320, '[+] SPEND ON DEF  (+1)', {
-        fontFamily: 'monospace',
-        fontSize: '12px',
-        color: '#f0c040',
-        backgroundColor: '#1a1a2e',
+      .text(240, 320, "[+] SPEND ON DEF  (+1)", {
+        fontFamily: "monospace",
+        fontSize: "12px",
+        color: "#f0c040",
+        backgroundColor: "#1a1a2e",
         padding: { x: 8, y: 5 },
       })
       .setOrigin(0.5)
@@ -396,11 +549,11 @@ export class GameScene extends Phaser.Scene {
       .setVisible(false)
       .setInteractive({ useHandCursor: true });
     this.profileBtnHp = this.add
-      .text(240, 350, '[+] SPEND ON HP   (+8)', {
-        fontFamily: 'monospace',
-        fontSize: '12px',
-        color: '#f0c040',
-        backgroundColor: '#1a1a2e',
+      .text(240, 350, "[+] SPEND ON HP   (+8)", {
+        fontFamily: "monospace",
+        fontSize: "12px",
+        color: "#f0c040",
+        backgroundColor: "#1a1a2e",
         padding: { x: 8, y: 5 },
       })
       .setOrigin(0.5)
@@ -409,11 +562,11 @@ export class GameScene extends Phaser.Scene {
       .setVisible(false)
       .setInteractive({ useHandCursor: true });
     this.profileCloseBtn = this.add
-      .text(240, 385, '[ CLOSE ]', {
-        fontFamily: 'monospace',
-        fontSize: '12px',
-        color: '#888888',
-        backgroundColor: '#111118',
+      .text(240, 385, "[ CLOSE ]", {
+        fontFamily: "monospace",
+        fontSize: "12px",
+        color: "#888888",
+        backgroundColor: "#111118",
         padding: { x: 8, y: 5 },
       })
       .setOrigin(0.5)
@@ -421,44 +574,63 @@ export class GameScene extends Phaser.Scene {
       .setDepth(201)
       .setVisible(false)
       .setInteractive({ useHandCursor: true });
-    this.profileBtnAtk.on('pointerdown', (pointer, localX, localY, event) => {
+    this.profileBtnAtk.on("pointerdown", (pointer, localX, localY, event) => {
       if (event) event.stopPropagation();
-      this.spendStatPoint('atk');
+      this.spendStatPoint("atk");
       this.refreshProfileOverlay();
     });
-    this.profileBtnDef.on('pointerdown', (pointer, localX, localY, event) => {
+    this.profileBtnDef.on("pointerdown", (pointer, localX, localY, event) => {
       if (event) event.stopPropagation();
-      this.spendStatPoint('def');
+      this.spendStatPoint("def");
       this.refreshProfileOverlay();
     });
-    this.profileBtnHp.on('pointerdown', (pointer, localX, localY, event) => {
+    this.profileBtnHp.on("pointerdown", (pointer, localX, localY, event) => {
       if (event) event.stopPropagation();
-      this.spendStatPoint('hp');
+      this.spendStatPoint("hp");
       this.refreshProfileOverlay();
     });
-    this.profileCloseBtn.on('pointerdown', (pointer, localX, localY, event) => {
+    this.profileCloseBtn.on("pointerdown", (pointer, localX, localY, event) => {
       if (event) event.stopPropagation();
       this.toggleProfileOverlay();
     });
-    [this.profileBtnAtk, this.profileBtnDef, this.profileBtnHp].forEach((btn) => {
-      btn.on('pointerover', () => btn.setStyle({ backgroundColor: '#2a2a44' }));
-      btn.on('pointerout', () => btn.setStyle({ backgroundColor: '#1a1a2e' }));
-    });
+    [this.profileBtnAtk, this.profileBtnDef, this.profileBtnHp].forEach(
+      (btn) => {
+        btn.on("pointerover", () =>
+          btn.setStyle({ backgroundColor: "#2a2a44" }),
+        );
+        btn.on("pointerout", () =>
+          btn.setStyle({ backgroundColor: "#1a1a2e" }),
+        );
+      },
+    );
 
     this.gameOverTitle = this.add
-      .text(240, 210, '', { fontFamily: 'monospace', fontSize: '36px', color: '#ff4444' })
+      .text(240, 210, "", {
+        fontFamily: "monospace",
+        fontSize: "36px",
+        color: "#ff4444",
+      })
       .setOrigin(0.5)
       .setScrollFactor(0)
       .setDepth(320)
       .setVisible(false);
     this.gameOverStats = this.add
-      .text(240, 255, '', { fontFamily: 'monospace', fontSize: '14px', color: '#ffffff', align: 'center' })
+      .text(240, 255, "", {
+        fontFamily: "monospace",
+        fontSize: "14px",
+        color: "#ffffff",
+        align: "center",
+      })
       .setOrigin(0.5)
       .setScrollFactor(0)
       .setDepth(320)
       .setVisible(false);
     this.gameOverRestart = this.add
-      .text(240, 310, '', { fontFamily: 'monospace', fontSize: '14px', color: '#aaaaaa' })
+      .text(240, 310, "", {
+        fontFamily: "monospace",
+        fontSize: "14px",
+        color: "#aaaaaa",
+      })
       .setOrigin(0.5)
       .setScrollFactor(0)
       .setDepth(320)
@@ -467,37 +639,38 @@ export class GameScene extends Phaser.Scene {
     this.buildFloor(true);
     this.refreshHUD();
 
-    this.input.keyboard.on('keydown', (e) => {
+    this.input.keyboard.on("keydown", (e) => {
       if (e.repeat) return;
-      if ((e.key === 'r' || e.key === 'R') && this.isGameOver) {
+      if ((e.key === "r" || e.key === "R") && this.isGameOver) {
         this.scene.restart();
         return;
       }
-      if (e.key === 'p' || e.key === 'P') {
+      if (e.key === "p" || e.key === "P") {
         this.toggleProfileOverlay();
         return;
-      } else if (e.key === 'Escape') {
+      } else if (e.key === "Escape") {
         if (this.profileOverlayOpen) {
           this.toggleProfileOverlay();
           return;
         }
       }
-      if (this.playerHp <= 0 || this.isGameOver || this.isTransitioningFloor) return;
+      if (this.playerHp <= 0 || this.isGameOver || this.isTransitioningFloor)
+        return;
       if (this.processingTurn) return;
 
       let dx = 0;
       let dy = 0;
-      if (e.key === 'w' || e.key === 'W' || e.key === 'ArrowUp') dy = -1;
-      else if (e.key === 's' || e.key === 'S' || e.key === 'ArrowDown') dy = 1;
-      else if (e.key === 'a' || e.key === 'A' || e.key === 'ArrowLeft') dx = -1;
-      else if (e.key === 'd' || e.key === 'D' || e.key === 'ArrowRight') dx = 1;
+      if (e.key === "w" || e.key === "W" || e.key === "ArrowUp") dy = -1;
+      else if (e.key === "s" || e.key === "S" || e.key === "ArrowDown") dy = 1;
+      else if (e.key === "a" || e.key === "A" || e.key === "ArrowLeft") dx = -1;
+      else if (e.key === "d" || e.key === "D" || e.key === "ArrowRight") dx = 1;
       else return;
 
       this.tryPlayerMove(dx, dy);
     });
 
     // Click to move
-    this.input.on('pointerdown', (pointer) => {
+    this.input.on("pointerdown", (pointer) => {
       if (this.processingTurn) return;
       if (this.isTransitioningFloor) return;
       if (this.isGameOver) return;
@@ -542,6 +715,10 @@ export class GameScene extends Phaser.Scene {
 
   buildFloor(firstBuild = false) {
     this.fogLayer.clear();
+    for (const item of this.groundItems || []) {
+      if (item.sprite) item.sprite.destroy();
+    }
+    this.groundItems = [];
     for (const row of this.tileSprites) {
       for (const s of row) {
         s.destroy();
@@ -564,9 +741,182 @@ export class GameScene extends Phaser.Scene {
       this.stairs.destroy();
       this.stairs = null;
     }
+    if (this.stairsUp) {
+      this.tweens.killTweensOf(this.stairsUp);
+      this.stairsUp.destroy();
+      this.stairsUp = null;
+    }
     if (this.stairsFloatHint) {
       this.stairsFloatHint.destroy();
       this.stairsFloatHint = null;
+    }
+
+    const saved = this.floorStates && this.floorStates.get(this.floor);
+    if (saved) {
+      this.grid = saved.grid;
+      this.rooms = saved.rooms;
+      this.explored = saved.explored.map((row) => [...row]);
+
+      // Render tiles from saved grid
+      for (let y = 0; y < GH; y++) {
+        this.tileSprites[y] = [];
+        for (let x = 0; x < GW; x++) {
+          const key = this.grid[y][x] === 1 ? "wall" : "floor";
+          const s = this.add.image(x * TILE, y * TILE, key).setOrigin(0, 0);
+          this.tileSprites[y][x] = s;
+        }
+      }
+
+      const r0 = this.rooms[0];
+      this.px = r0.cx;
+      this.py = r0.cy;
+
+      if (firstBuild) {
+        this.player = this.physics.add.sprite(
+          this.px * TILE + TILE / 2,
+          this.py * TILE + TILE / 2,
+          "player",
+        );
+        this.player.setDepth(58);
+        this.player.body.setSize(16, 16);
+        this.player.setCollideWorldBounds(false);
+      } else {
+        this.player.setPosition(
+          this.px * TILE + TILE / 2,
+          this.py * TILE + TILE / 2,
+        );
+      }
+
+      this.player.setVisible(true);
+      this.player.setAlpha(1);
+      this.player.setScale(1);
+      this.player.clearTint();
+
+      this.player.setDepth(58);
+
+      this.cameras.main.setBounds(0, 0, GW * TILE, GH * TILE);
+      this.cameras.main.startFollow(this.player, true, 1, 1);
+
+      // Restore stairs down
+      if (saved.stairsGx !== null && saved.stairsGy !== null) {
+        this.stairs = this.add
+          .text(
+            saved.stairsGx * TILE + TILE / 2,
+            saved.stairsGy * TILE + TILE / 2,
+            "▼",
+            {
+              fontFamily: "monospace",
+              fontSize: "16px",
+              color: "#f0c040",
+            },
+          )
+          .setOrigin(0.5)
+          .setDepth(54);
+        this.tweens.add({
+          targets: this.stairs,
+          alpha: { from: 0.6, to: 1 },
+          duration: 800,
+          yoyo: true,
+          repeat: -1,
+        });
+        this.stairs.gx = saved.stairsGx;
+        this.stairs.gy = saved.stairsGy;
+      }
+
+      // Restore stairs up
+      if (saved.stairsUpGx !== null) {
+        if (this.stairsUp) {
+          this.tweens.killTweensOf(this.stairsUp);
+          this.stairsUp.destroy();
+          this.stairsUp = null;
+        }
+        const upColor = saved.stairsUpLocked ? '#333355' : '#88ddff';
+        this.stairsUp = this.add.text(
+          saved.stairsUpGx * TILE + TILE / 2,
+          saved.stairsUpGy * TILE + TILE / 2,
+          '▲',
+          { fontFamily: 'monospace', fontSize: '16px', color: upColor }
+        ).setOrigin(0.5).setDepth(54).setVisible(false);
+        this.stairsUp.gx = saved.stairsUpGx;
+        this.stairsUp.gy = saved.stairsUpGy;
+        this.stairsUp.locked = saved.stairsUpLocked;
+        if (!this.stairsUp.locked) {
+          this.tweens.add({
+            targets: this.stairsUp,
+            alpha: { from: 0.6, to: 1 },
+            duration: 800, yoyo: true, repeat: -1,
+          });
+        }
+      }
+
+      // Restore stairs float hint (only floor 1)
+      this.stairsFloatHint = null;
+      if (this.stairs && this.floor <= 1) {
+        this.stairsFloatHint = this.add
+          .text(
+            this.stairs.gx * TILE + TILE / 2,
+            this.stairs.gy * TILE - 10,
+            "▼ descend",
+            {
+              fontFamily: "monospace",
+              fontSize: "9px",
+              color: "#f0c040",
+            },
+          )
+          .setOrigin(0.5, 1)
+          .setDepth(120)
+          .setAlpha(0);
+
+        this.time.delayedCall(500, () => {
+          if (!this.stairsFloatHint) return;
+          this.tweens.add({
+            targets: this.stairsFloatHint,
+            alpha: 1,
+            duration: 400,
+          });
+        });
+      }
+
+      // Restore enemies
+      this.enemies = [];
+      for (const es of saved.enemyStates || []) {
+        if (es.dead) continue;
+        const spr = this.physics.add.sprite(
+          es.gx * TILE + TILE / 2,
+          es.gy * TILE + TILE / 2,
+          "enemy",
+        );
+        spr.setDepth(56);
+        spr.body.setSize(16, 16);
+        this.enemies.push({
+          sprite: spr,
+          gx: es.gx,
+          gy: es.gy,
+          hp: es.hp,
+          atk: es.atk,
+          cachedPath: [],
+          pathCacheTurn: -1000,
+          aiState: es.aiState,
+          lastKnownPx: es.lastKnownPx,
+          lastKnownPy: es.lastKnownPy,
+          patrolTick: 0,
+          searchTurns: 0,
+          roamStepsLeft: -1,
+          stateIcon: null,
+        });
+      }
+
+      // Restore ground items
+      for (const gi of saved.groundItemStates || []) {
+        if (ITEMS[gi.id]) this.spawnGroundItem(gi.gx, gi.gy, { ...ITEMS[gi.id] });
+      }
+
+      // Render visibility based on restored explored
+      this.updateFog();
+      this.refreshTileVisibility();
+      this.refreshEnemyVisibility();
+
+      return;
     }
 
     const rng = Phaser.Math.RND;
@@ -577,7 +927,7 @@ export class GameScene extends Phaser.Scene {
     for (let y = 0; y < GH; y++) {
       this.tileSprites[y] = [];
       for (let x = 0; x < GW; x++) {
-        const key = grid[y][x] === 1 ? 'wall' : 'floor';
+        const key = grid[y][x] === 1 ? "wall" : "floor";
         const s = this.add.image(x * TILE, y * TILE, key).setOrigin(0, 0);
         this.tileSprites[y][x] = s;
       }
@@ -594,17 +944,27 @@ export class GameScene extends Phaser.Scene {
     this.py = r0.cy;
 
     if (firstBuild) {
-      this.player = this.physics.add.sprite(this.px * TILE + TILE / 2, this.py * TILE + TILE / 2, 'player');
-      this.player.setDepth(55);
+      this.player = this.physics.add.sprite(
+        this.px * TILE + TILE / 2,
+        this.py * TILE + TILE / 2,
+        "player",
+      );
+      this.player.setDepth(58);
       this.player.body.setSize(16, 16);
       this.player.setCollideWorldBounds(false);
     } else {
-      this.player.setPosition(this.px * TILE + TILE / 2, this.py * TILE + TILE / 2);
+      this.player.setPosition(
+        this.px * TILE + TILE / 2,
+        this.py * TILE + TILE / 2,
+      );
     }
 
-    this.player.setPosition(this.px * TILE + TILE / 2, this.py * TILE + TILE / 2);
+    this.player.setPosition(
+      this.px * TILE + TILE / 2,
+      this.py * TILE + TILE / 2,
+    );
     this.player.setVisible(true);
-    this.player.setDepth(55);
+    this.player.setDepth(58);
     this.player.setAlpha(1);
     this.player.setScale(1);
     this.player.clearTint();
@@ -614,10 +974,16 @@ export class GameScene extends Phaser.Scene {
     const enemyHp = ENEMY_BASE_HP + (this.floor - 1) * 3;
     const enemyAtk = ENEMY_BASE_ATK + (this.floor - 1);
     const enemyCountTarget = Math.min(3 + this.floor, 12);
+    const safeRoom = this.rooms[0];
     const floorTiles = [];
     for (let y = 0; y < GH; y++) {
       for (let x = 0; x < GW; x++) {
-        if (grid[y][x] === 0 && !(x === this.px && y === this.py)) floorTiles.push({ x, y });
+        if (grid[y][x] !== 0) continue;
+        if (x === this.px && y === this.py) continue;
+        // Exclude safe room (rooms[0]) sepenuhnya
+        if (x >= safeRoom.x && x < safeRoom.x + safeRoom.w &&
+            y >= safeRoom.y && y < safeRoom.y + safeRoom.h) continue;
+        floorTiles.push({ x, y });
       }
     }
     Phaser.Math.RND.shuffle(floorTiles);
@@ -625,8 +991,12 @@ export class GameScene extends Phaser.Scene {
 
     for (let i = 0; i < spawnCount; i++) {
       const pos = floorTiles[i];
-      const spr = this.physics.add.sprite(pos.x * TILE + TILE / 2, pos.y * TILE + TILE / 2, 'enemy');
-      spr.setDepth(52);
+      const spr = this.physics.add.sprite(
+        pos.x * TILE + TILE / 2,
+        pos.y * TILE + TILE / 2,
+        "enemy",
+      );
+      spr.setDepth(56);
       spr.body.setSize(16, 16);
       this.enemies.push({
         sprite: spr,
@@ -636,7 +1006,8 @@ export class GameScene extends Phaser.Scene {
         atk: enemyAtk,
         cachedPath: [],
         pathCacheTurn: -1000,
-        aiState: 'idle',
+        aiState: "idle",
+        aiStatePrev: "idle",
         lastKnownPx: 0,
         lastKnownPy: 0,
         patrolTick: 0,
@@ -649,13 +1020,13 @@ export class GameScene extends Phaser.Scene {
     const stairRoom = rooms[rooms.length - 1];
     const stairPos = { x: stairRoom.cx, y: stairRoom.cy };
     this.stairs = this.add
-      .text(stairPos.x * TILE + TILE / 2, stairPos.y * TILE + TILE / 2, '▼', {
-        fontFamily: 'monospace',
-        fontSize: '16px',
-        color: '#f0c040',
+      .text(stairPos.x * TILE + TILE / 2, stairPos.y * TILE + TILE / 2, "▼", {
+        fontFamily: "monospace",
+        fontSize: "16px",
+        color: "#f0c040",
       })
       .setOrigin(0.5)
-      .setDepth(56);
+      .setDepth(54);
     this.tweens.add({
       targets: this.stairs,
       alpha: { from: 0.6, to: 1 },
@@ -669,11 +1040,16 @@ export class GameScene extends Phaser.Scene {
     this.stairsFloatHint = null;
     if (this.floor <= 1) {
       this.stairsFloatHint = this.add
-        .text(stairPos.x * TILE + TILE / 2, stairPos.y * TILE - 10, '▼ descend', {
-          fontFamily: 'monospace',
-          fontSize: '9px',
-          color: '#f0c040',
-        })
+        .text(
+          stairPos.x * TILE + TILE / 2,
+          stairPos.y * TILE - 10,
+          "▼ descend",
+          {
+            fontFamily: "monospace",
+            fontSize: "9px",
+            color: "#f0c040",
+          },
+        )
         .setOrigin(0.5, 1)
         .setDepth(120)
         .setAlpha(0);
@@ -685,6 +1061,40 @@ export class GameScene extends Phaser.Scene {
           duration: 400,
         });
       });
+    }
+
+    // Spawn stairs up di room pertama
+    const upRoom = this.rooms[0];
+    const upColor = this.floor > 1 ? '#88ddff' : '#333355';
+    this.stairsUp = this.add.text(
+      upRoom.cx * TILE + TILE / 2,
+      upRoom.cy * TILE + TILE / 2,
+      '▲',
+      { fontFamily: 'monospace', fontSize: '16px', color: upColor }
+    ).setOrigin(0.5).setDepth(54).setVisible(false);
+
+    this.stairsUp.gx = upRoom.cx;
+    this.stairsUp.gy = upRoom.cy;
+    this.stairsUp.locked = this.floor <= 1;
+
+    if (!this.stairsUp.locked) {
+      this.tweens.add({
+        targets: this.stairsUp,
+        alpha: { from: 0.6, to: 1 },
+        duration: 800, yoyo: true, repeat: -1,
+      });
+    }
+
+    // Bug 3: Chest di room tengah, posisi aman
+    if (this.rooms.length >= 3) {
+      const midIdx = Math.floor(this.rooms.length / 2);
+      const chestRoom = this.rooms[midIdx];
+      const cx = chestRoom.cx;
+      const cy = chestRoom.cy;
+      if (this.grid[cy] && this.grid[cy][cx] === 0) {
+        const chestItem = rollLoot();
+        this.spawnGroundItem(cx, cy, chestItem);
+      }
     }
 
     this.markExplored();
@@ -710,7 +1120,8 @@ export class GameScene extends Phaser.Scene {
   }
 
   enemyCanSeePlayer(e) {
-    if (chebyshev(e.gx, e.gy, this.px, this.py) > ENEMY_DETECT_RADIUS) return false;
+    if (chebyshev(e.gx, e.gy, this.px, this.py) > ENEMY_DETECT_RADIUS)
+      return false;
     return hasLOS(this.grid, e.gx, e.gy, this.px, this.py);
   }
 
@@ -720,13 +1131,13 @@ export class GameScene extends Phaser.Scene {
       e.stateIcon.destroy();
       e.stateIcon = null;
     }
-    if (e.aiState === 'hunt') {
+    if (e.aiState === "hunt") {
       e.stateIcon = this.add
-        .text(e.sprite.x, e.sprite.y - 12, '!', {
-          fontFamily: 'monospace',
-          fontSize: '14px',
-          fontStyle: 'bold',
-          color: '#ff4444',
+        .text(e.sprite.x, e.sprite.y - 12, "!", {
+          fontFamily: "monospace",
+          fontSize: "14px",
+          fontStyle: "bold",
+          color: "#ff4444",
         })
         .setOrigin(0.5, 1)
         .setDepth(63)
@@ -738,15 +1149,15 @@ export class GameScene extends Phaser.Scene {
         duration: ICON_BOUNCE_MS / 2,
         yoyo: true,
         repeat: -1,
-        ease: 'Sine.InOut',
+        ease: "Sine.InOut",
       });
-    } else if (e.aiState === 'search') {
+    } else if (e.aiState === "search") {
       e.stateIcon = this.add
-        .text(e.sprite.x, e.sprite.y - 12, '?', {
-          fontFamily: 'monospace',
-          fontSize: '14px',
-          fontStyle: 'bold',
-          color: '#ffff00',
+        .text(e.sprite.x, e.sprite.y - 12, "?", {
+          fontFamily: "monospace",
+          fontSize: "14px",
+          fontStyle: "bold",
+          color: "#ffff00",
         })
         .setOrigin(0.5, 1)
         .setDepth(63)
@@ -758,7 +1169,7 @@ export class GameScene extends Phaser.Scene {
         duration: ICON_BOUNCE_MS / 2,
         yoyo: true,
         repeat: -1,
-        ease: 'Sine.InOut',
+        ease: "Sine.InOut",
       });
     }
   }
@@ -778,11 +1189,12 @@ export class GameScene extends Phaser.Scene {
     this.uiDefText.setText(`DEF ${this.playerDef}`);
     this.uiFloorLabel.setText(`FLOOR ${this.floor}  LV ${this.playerLevel}`);
     this.uiTurnText.setText(`TURN ${this.turn}`);
+    if (this.uiGoldText) this.uiGoldText.setText(`Gold: ${this.playerGold}`);
     const hasPts = this.playerStatPoints > 0;
     if (this.uiProfileBadge) this.uiProfileBadge.setVisible(hasPts);
     if (this.uiProfileBtn) {
       this.uiProfileBtn.setStyle({
-        color: hasPts ? '#ff8844' : '#9988cc',
+        color: hasPts ? "#ff8844" : "#9988cc",
       });
     }
     if (this.profileOverlayOpen) this.refreshProfileOverlay();
@@ -818,15 +1230,15 @@ export class GameScene extends Phaser.Scene {
       atk: `${this.playerAtk}`,
       def: `${this.playerDef}`,
       level: `${this.playerLevel}`,
-      pts: `${this.playerStatPoints}${hasPts ? '  ← UNSPENT!' : ''}`,
+      pts: `${this.playerStatPoints}${hasPts ? "  ← UNSPENT!" : ""}`,
     };
 
     Object.entries(vals).forEach(([key, v]) => {
       if (this.profileStatTexts[key]) {
         this.profileStatTexts[key].val.setText(v);
-        if (key === 'pts') {
+        if (key === "pts") {
           this.profileStatTexts[key].val.setStyle({
-            color: hasPts ? '#ff8844' : '#888888',
+            color: hasPts ? "#ff8844" : "#888888",
           });
         }
       }
@@ -840,7 +1252,10 @@ export class GameScene extends Phaser.Scene {
   markExplored() {
     for (let y = 0; y < GH; y++) {
       for (let x = 0; x < GW; x++) {
-        if (chebyshev(this.px, this.py, x, y) <= LOS_RADIUS && hasLOS(this.grid, this.px, this.py, x, y)) {
+        if (
+          chebyshev(this.px, this.py, x, y) <= LOS_RADIUS &&
+          hasLOS(this.grid, this.px, this.py, x, y)
+        ) {
           this.explored[y][x] = true;
         }
       }
@@ -875,15 +1290,39 @@ export class GameScene extends Phaser.Scene {
       }
     }
     if (this.stairsFloatHint && this.stairs) {
-      this.stairsFloatHint.setVisible(this.playerCanSeeTile(this.stairs.gx, this.stairs.gy));
+      this.stairsFloatHint.setVisible(
+        this.playerCanSeeTile(this.stairs.gx, this.stairs.gy),
+      );
+    }
+    if (this.stairs) {
+      this.stairs.setVisible(
+        this.playerCanSeeTile(this.stairs.gx, this.stairs.gy),
+      );
+    }
+    if (this.stairsUp) {
+      this.stairsUp.setVisible(
+        this.playerCanSeeTile(this.stairsUp.gx, this.stairsUp.gy),
+      );
+    }
+
+    for (const item of this.groundItems || []) {
+      const vis =
+        this.explored[item.gy] &&
+        this.explored[item.gy][item.gx] &&
+        this.playerCanSeeTile(item.gx, item.gy);
+      item.sprite.setVisible(!!vis);
     }
   }
 
   refreshEnemyVisibility() {
     for (const e of this.enemies) {
       if (e.hp <= 0) continue;
-      const vis = this.explored[e.gy][e.gx] && this.playerCanSeeTile(e.gx, e.gy);
-      e.sprite.setVisible(vis);
+      const vis =
+        this.explored[e.gy] &&
+        this.explored[e.gy][e.gx] &&
+        this.playerCanSeeTile(e.gx, e.gy);
+      e.sprite.setVisible(!!vis);
+      if (e.stateIcon) e.stateIcon.setVisible(!!vis);
     }
   }
 
@@ -924,7 +1363,9 @@ export class GameScene extends Phaser.Scene {
   }
 
   enemyAt(tx, ty) {
-    return this.enemies.find((e) => e.hp > 0 && e.gx === tx && e.gy === ty) || null;
+    return (
+      this.enemies.find((e) => e.hp > 0 && e.gx === tx && e.gy === ty) || null
+    );
   }
 
   isWalkableForPath(x, y, goalX, goalY, walkerEnemy) {
@@ -944,9 +1385,9 @@ export class GameScene extends Phaser.Scene {
   spawnDamageNumber(tx, ty, text, color) {
     const t = this.add
       .text(tx * TILE + TILE / 2, ty * TILE + TILE / 2, text, {
-        fontFamily: 'monospace',
-        fontSize: '12px',
-        fontStyle: 'bold',
+        fontFamily: "monospace",
+        fontSize: "12px",
+        fontStyle: "bold",
         color,
       })
       .setOrigin(0.5)
@@ -956,9 +1397,50 @@ export class GameScene extends Phaser.Scene {
       y: t.y - 28,
       alpha: { from: 1, to: 0 },
       duration: 600,
-      ease: 'Sine.Out',
+      ease: "Sine.Out",
       onComplete: () => t.destroy(),
     });
+  }
+
+  spawnFloatingText(tx, ty, text, color) {
+    const t = this.add
+      .text(tx * TILE + TILE / 2, ty * TILE + TILE / 2, text, {
+        fontFamily: "monospace",
+        fontSize: "12px",
+        color,
+      })
+      .setOrigin(0.5)
+      .setDepth(60);
+    this.tweens.add({
+      targets: t,
+      y: t.y - 28,
+      alpha: { from: 1, to: 0 },
+      duration: 600,
+      ease: "Sine.Out",
+      onComplete: () => t.destroy(),
+    });
+  }
+
+  spawnGroundItem(x, y, item) {
+    const sprite = this.add
+      .text(x * TILE + TILE / 2, y * TILE + TILE / 2, item.char, {
+        fontFamily: "monospace",
+        fontSize: "14px",
+        color: item.color,
+      })
+      .setOrigin(0.5)
+      .setDepth(45);
+
+    this.tweens.add({
+      targets: sprite,
+      y: sprite.y - 2,
+      duration: 600,
+      yoyo: true,
+      repeat: -1,
+      ease: "Sine.InOut",
+    });
+
+    this.groundItems.push({ ...item, gx: x, gy: y, sprite });
   }
 
   showClickPath(path) {
@@ -972,7 +1454,14 @@ export class GameScene extends Phaser.Scene {
     path.forEach((p, i) => {
       if (i === 0) return; // skip step pertama
       const dot = this.add
-        .rectangle(p.x * TILE + TILE / 2, p.y * TILE + TILE / 2, 4, 4, 0x9988cc, 0.6)
+        .rectangle(
+          p.x * TILE + TILE / 2,
+          p.y * TILE + TILE / 2,
+          4,
+          4,
+          0x9988cc,
+          0.6,
+        )
         .setDepth(55);
 
       this.pathHighlights.push(dot);
@@ -993,6 +1482,106 @@ export class GameScene extends Phaser.Scene {
     });
   }
 
+  saveCurrentFloorState() {
+    const enemyStates = (this.enemies || []).map((e) => ({
+      gx: e.gx,
+      gy: e.gy,
+      hp: e.hp,
+      atk: e.atk,
+      aiState: e.aiState,
+      lastKnownPx: e.lastKnownPx,
+      lastKnownPy: e.lastKnownPy,
+      dead: e.hp <= 0,
+    }));
+
+    const groundItemStates = (this.groundItems || []).map((i) => ({
+      gx: i.gx,
+      gy: i.gy,
+      id: i.id,
+    }));
+
+    this.floorStates.set(this.floor, {
+      enemyStates,
+      explored: (this.explored || []).map((row) => [...row]),
+      grid: this.grid,
+      rooms: this.rooms,
+      stairsGx: this.stairs ? this.stairs.gx : null,
+      stairsGy: this.stairs ? this.stairs.gy : null,
+      stairsUpGx: this.stairsUp ? this.stairsUp.gx : null,
+      stairsUpGy: this.stairsUp ? this.stairsUp.gy : null,
+      stairsUpLocked: this.stairsUp ? this.stairsUp.locked : true,
+      groundItemStates,
+    });
+  }
+
+  beginAscendTransition() {
+    if (this.isTransitioningFloor) return;
+    this.isTransitioningFloor = true;
+    this.processingTurn = true;
+    const spawnX = this.stairs ? this.stairs.gx : null;
+    const spawnY = this.stairs ? this.stairs.gy : null;
+    this.saveCurrentFloorState();
+    const targetFloor = this.floor - 1;
+
+    this.cameras.main.shake(200, 0.01);
+    this.tweens.add({
+      targets: this.overlayFade, alpha: 1, duration: 400,
+      onComplete: () => {
+        const ascText = this.add.text(240, 210, 'ASCENDING...', {
+          fontFamily: 'monospace', fontSize: '16px', color: '#88ddff'
+        }).setOrigin(0.5).setScrollFactor(0).setDepth(305).setAlpha(0);
+
+        this.tweens.add({
+          targets: ascText, alpha: 1, duration: 200,
+          onComplete: () => {
+            const floorText = this.add.text(240, 240,
+              `FLOOR ${targetFloor}`, {
+              fontFamily: 'monospace', fontSize: '36px', color: '#88ddff'
+            }).setOrigin(0.5).setScrollFactor(0).setDepth(305).setScale(0.5);
+
+            this.tweens.add({
+              targets: floorText, scale: 1.0,
+              duration: 300, ease: 'Back.Out'
+            });
+
+            this.time.delayedCall(1000, () => {
+              this.floor = targetFloor;
+              this.buildFloor(false);
+              
+              if (spawnX !== null && spawnY !== null) {
+                this.px = spawnX;
+                this.py = spawnY;
+                this.player.setPosition(
+                  spawnX * TILE + TILE / 2,
+                  spawnY * TILE + TILE / 2
+                );
+                this.cameras.main.centerOn(
+                  spawnX * TILE + TILE / 2,
+                  spawnY * TILE + TILE / 2
+                );
+              }
+              this.player.setVisible(true);
+              this.player.setAlpha(1);
+              this.markExplored();
+              this.updateFog();
+              this.refreshTileVisibility();
+              this.refreshHUD();
+              ascText.destroy();
+              floorText.destroy();
+              this.tweens.add({
+                targets: this.overlayFade, alpha: 0, duration: 400,
+                onComplete: () => {
+                  this.isTransitioningFloor = false;
+                  this.processingTurn = false;
+                }
+              });
+            });
+          }
+        });
+      }
+    });
+  }
+
   beginFloorTransition() {
     if (this.isTransitioningFloor) return;
     this.isTransitioningFloor = true;
@@ -1001,6 +1590,7 @@ export class GameScene extends Phaser.Scene {
       this.stairsFloatHint.destroy();
       this.stairsFloatHint = null;
     }
+    this.saveCurrentFloorState();
     this.floor += 1;
 
     // Step 1: screen shake + fade ke hitam
@@ -1012,10 +1602,10 @@ export class GameScene extends Phaser.Scene {
       onComplete: () => {
         // Step 2: "DESCENDING..." text
         const descText = this.add
-          .text(240, 210, 'DESCENDING...', {
-            fontFamily: 'monospace',
-            fontSize: '16px',
-            color: '#888888',
+          .text(240, 210, "DESCENDING...", {
+            fontFamily: "monospace",
+            fontSize: "16px",
+            color: "#888888",
           })
           .setOrigin(0.5)
           .setScrollFactor(0)
@@ -1030,18 +1620,18 @@ export class GameScene extends Phaser.Scene {
             // Step 3: "FLOOR X" teks besar
             const biome =
               this.floor <= 5
-                ? '— THE CRYPT —'
+                ? "— THE CRYPT —"
                 : this.floor <= 10
-                  ? '— THE OVERGROWTH —'
+                  ? "— THE OVERGROWTH —"
                   : this.floor <= 15
-                    ? '— THE FORGE —'
-                    : '— THE ABYSS —';
+                    ? "— THE FORGE —"
+                    : "— THE ABYSS —";
 
             const floorText = this.add
               .text(240, 240, `FLOOR ${this.floor}`, {
-                fontFamily: 'monospace',
-                fontSize: '36px',
-                color: '#f0c040',
+                fontFamily: "monospace",
+                fontSize: "36px",
+                color: "#f0c040",
               })
               .setOrigin(0.5)
               .setScrollFactor(0)
@@ -1050,9 +1640,9 @@ export class GameScene extends Phaser.Scene {
 
             const biomeText = this.add
               .text(240, 278, biome, {
-                fontFamily: 'monospace',
-                fontSize: '14px',
-                color: '#c8b8e8',
+                fontFamily: "monospace",
+                fontSize: "14px",
+                color: "#c8b8e8",
               })
               .setOrigin(0.5)
               .setScrollFactor(0)
@@ -1063,7 +1653,7 @@ export class GameScene extends Phaser.Scene {
               targets: floorText,
               scale: 1.0,
               duration: 300,
-              ease: 'Back.Out',
+              ease: "Back.Out",
             });
             this.tweens.add({
               targets: biomeText,
@@ -1075,7 +1665,7 @@ export class GameScene extends Phaser.Scene {
             // Step 4: Build floor lalu fade in
             this.time.delayedCall(1000, () => {
               this.buildFloor(false);
-              this.player.setDepth(55);
+              this.player.setDepth(58);
               this.player.setVisible(true);
               this.player.setAlpha(1);
               this.markExplored();
@@ -1124,9 +1714,9 @@ export class GameScene extends Phaser.Scene {
 
     const burst = this.add
       .text(240, 200, `LEVEL ${this.playerLevel}!  +2 PTS`, {
-        fontFamily: 'monospace',
-        fontSize: '22px',
-        color: '#f0c040',
+        fontFamily: "monospace",
+        fontSize: "22px",
+        color: "#f0c040",
       })
       .setOrigin(0.5)
       .setScrollFactor(0)
@@ -1138,7 +1728,7 @@ export class GameScene extends Phaser.Scene {
       y: 160,
       scale: 1.0,
       duration: 400,
-      ease: 'Back.Out',
+      ease: "Back.Out",
       onComplete: () => {
         this.tweens.add({
           targets: burst,
@@ -1158,9 +1748,9 @@ export class GameScene extends Phaser.Scene {
   spendStatPoint(stat) {
     if (this.playerStatPoints <= 0) return;
     this.playerStatPoints--;
-    if (stat === 'atk') this.playerAtk += 2;
-    else if (stat === 'def') this.playerDef += 1;
-    else if (stat === 'hp') {
+    if (stat === "atk") this.playerAtk += 2;
+    else if (stat === "def") this.playerDef += 1;
+    else if (stat === "hp") {
       this.playerMaxHp += 8;
       this.playerHp += 8;
     }
@@ -1181,11 +1771,13 @@ export class GameScene extends Phaser.Scene {
       alpha: 1,
       duration: 500,
       onComplete: () => {
-        this.gameOverTitle.setText('YOU DIED').setVisible(true);
+        this.gameOverTitle.setText("YOU DIED").setVisible(true);
         this.gameOverStats
-          .setText(`Floor reached: ${this.floor}\nEnemies slain: ${this.enemiesSlain}`)
+          .setText(
+            `Floor reached: ${this.floor}\nEnemies slain: ${this.enemiesSlain}`,
+          )
           .setVisible(true);
-        this.gameOverRestart.setText('Press R to restart').setVisible(true);
+        this.gameOverRestart.setText("Press R to restart").setVisible(true);
         this.tweens.add({
           targets: this.gameOverRestart,
           alpha: { from: 1, to: 0.35 },
@@ -1300,6 +1892,10 @@ export class GameScene extends Phaser.Scene {
         ease: MOVE_EASE,
         onComplete: () => {
           s.destroy();
+          if (Math.random() < 0.4) {
+            const item = rollLoot();
+            this.spawnGroundItem(enemyData.gx, enemyData.gy, item);
+          }
           onComplete();
         },
       });
@@ -1332,18 +1928,22 @@ export class GameScene extends Phaser.Scene {
       const ox = this.px;
       const oy = this.py;
       targetEnemy.hp -= dmg;
-      this.spawnDamageNumber(nx, ny, `-${dmg}`, '#ffffff');
+      this.spawnDamageNumber(nx, ny, `-${dmg}`, "#ffffff");
       if (targetEnemy.hp <= 0) {
         this.px = nx;
         this.py = ny;
         this.playEnemyDeath(targetEnemy, () => {
           this.enemiesSlain += 1;
           this.grantXp(10, () => {
-            this.tweenPlayerToGrid(nx, ny, ox, oy, () => this.finishPlayerTurn());
+            this.tweenPlayerToGrid(nx, ny, ox, oy, () =>
+              this.finishPlayerTurn(),
+            );
           });
         });
       } else {
-        this.playPlayerAttackLunge(nx, ny, targetEnemy.sprite, () => this.finishPlayerTurn());
+        this.playPlayerAttackLunge(nx, ny, targetEnemy.sprite, () =>
+          this.finishPlayerTurn(),
+        );
       }
       return;
     }
@@ -1353,8 +1953,34 @@ export class GameScene extends Phaser.Scene {
     this.px = nx;
     this.py = ny;
     this.tweenPlayerToGrid(nx, ny, ox, oy, () => {
-      if (this.stairs && this.px === this.stairs.gx && this.py === this.stairs.gy) {
+      // Pickup ground item
+      const itemIdx = this.groundItems.findIndex(
+        (i) => i.gx === this.px && i.gy === this.py,
+      );
+      if (itemIdx !== -1) {
+        const item = this.groundItems[itemIdx];
+        item.sprite.destroy();
+        this.groundItems.splice(itemIdx, 1);
+        item.onUse(this);
+        this.spawnDamageNumber(this.px, this.py, item.name, item.color);
+      }
+      if (
+        this.stairs &&
+        this.px === this.stairs.gx &&
+        this.py === this.stairs.gy
+      ) {
         this.beginFloorTransition();
+        return;
+      }
+      if (this.stairsUp && this.px === this.stairsUp.gx
+          && this.py === this.stairsUp.gy) {
+        if (this.stairsUp.locked) {
+          this.spawnFloatingText(this.px, this.py,
+            'Cannot ascend yet!', '#888888');
+          this.finishPlayerTurn();
+          return;
+        }
+        this.beginAscendTransition();
         return;
       }
       this.finishPlayerTurn();
@@ -1393,7 +2019,7 @@ export class GameScene extends Phaser.Scene {
 
       const dist = manhattan(e.gx, e.gy, this.px, this.py);
       if (dist === 1) {
-        this.spawnDamageNumber(this.px, this.py, `-${e.atk}`, '#ff4444');
+        this.spawnDamageNumber(this.px, this.py, `-${e.atk}`, "#ff4444");
         this.applyPlayerDamage(Math.max(1, e.atk - this.playerDef), () => {
           if (this.playerHp <= 0) {
             onAllEnemiesDone();
@@ -1405,53 +2031,55 @@ export class GameScene extends Phaser.Scene {
       }
 
       const canSee = this.enemyCanSeePlayer(e);
+      const prevAiState = e.aiStatePrev !== undefined ? e.aiStatePrev : e.aiState;
 
-      if (e.aiState === 'hunt') {
+      if (e.aiState === "hunt") {
         if (canSee) {
           e.lastKnownPx = this.px;
           e.lastKnownPy = this.py;
           e.pathCacheTurn = -1000;
         } else {
-          e.aiState = 'search';
+          e.aiState = "search";
           e.searchTurns = 0;
           e.roamStepsLeft = -1;
           e.cachedPath = [];
           e.pathCacheTurn = -1000;
-          this.syncEnemyStateIcon(e);
         }
       }
 
-      if (e.aiState === 'search') {
+      if (e.aiState === "search") {
         if (canSee) {
-          e.aiState = 'hunt';
+          e.aiState = "hunt";
           e.lastKnownPx = this.px;
           e.lastKnownPy = this.py;
           e.cachedPath = [];
           e.pathCacheTurn = -1000;
-          this.syncEnemyStateIcon(e);
         } else {
           e.searchTurns++;
           if (e.searchTurns >= SEARCH_MAX_TURNS) {
-            e.aiState = 'idle';
+            e.aiState = "idle";
             e.patrolTick = 0;
             e.roamStepsLeft = -1;
             e.cachedPath = [];
             e.pathCacheTurn = -1000;
-            this.syncEnemyStateIcon(e);
           }
         }
       }
 
-      if (e.aiState === 'idle' && canSee) {
-        e.aiState = 'hunt';
+      if (e.aiState === "idle" && canSee) {
+        e.aiState = "hunt";
         e.lastKnownPx = this.px;
         e.lastKnownPy = this.py;
         e.cachedPath = [];
         e.pathCacheTurn = -1000;
+      }
+
+      if (e.aiState !== prevAiState) {
+        e.aiStatePrev = e.aiState;
         this.syncEnemyStateIcon(e);
       }
 
-      if (e.aiState === 'idle') {
+      if (e.aiState === "idle") {
         e.patrolTick++;
         if (e.patrolTick < 2) {
           runAt(i + 1);
@@ -1467,7 +2095,7 @@ export class GameScene extends Phaser.Scene {
         return;
       }
 
-      if (e.aiState === 'search') {
+      if (e.aiState === "search") {
         if (e.gx === e.lastKnownPx && e.gy === e.lastKnownPy) {
           if (e.roamStepsLeft < 0) {
             e.roamStepsLeft = Phaser.Math.Between(3, 5);
@@ -1488,8 +2116,13 @@ export class GameScene extends Phaser.Scene {
 
         const needRecalcS = this.turn - e.pathCacheTurn >= PATH_CACHE_TURNS;
         if (needRecalcS) {
-          e.cachedPath = findPath(e.gx, e.gy, e.lastKnownPx, e.lastKnownPy, (x, y) =>
-            this.isWalkableForPath(x, y, e.lastKnownPx, e.lastKnownPy, e),
+          e.cachedPath = findPath(
+            e.gx,
+            e.gy,
+            e.lastKnownPx,
+            e.lastKnownPy,
+            (x, y) =>
+              this.isWalkableForPath(x, y, e.lastKnownPx, e.lastKnownPy, e),
           );
           e.pathCacheTurn = this.turn;
         }
@@ -1507,7 +2140,15 @@ export class GameScene extends Phaser.Scene {
           return;
         }
 
-        if (!this.isWalkableForPath(nextS.x, nextS.y, e.lastKnownPx, e.lastKnownPy, e)) {
+        if (
+          !this.isWalkableForPath(
+            nextS.x,
+            nextS.y,
+            e.lastKnownPx,
+            e.lastKnownPy,
+            e,
+          )
+        ) {
           e.cachedPath = [];
           e.pathCacheTurn = -1000;
           runAt(i + 1);
@@ -1515,7 +2156,7 @@ export class GameScene extends Phaser.Scene {
         }
 
         if (nextS.x === this.px && nextS.y === this.py) {
-          this.spawnDamageNumber(this.px, this.py, `-${e.atk}`, '#ff4444');
+          this.spawnDamageNumber(this.px, this.py, `-${e.atk}`, "#ff4444");
           e.cachedPath = [];
           this.applyPlayerDamage(Math.max(1, e.atk - this.playerDef), () => {
             if (this.playerHp <= 0) {
@@ -1574,7 +2215,7 @@ export class GameScene extends Phaser.Scene {
       }
 
       if (next.x === this.px && next.y === this.py) {
-        this.spawnDamageNumber(this.px, this.py, `-${e.atk}`, '#ff4444');
+        this.spawnDamageNumber(this.px, this.py, `-${e.atk}`, "#ff4444");
         e.cachedPath = [];
         this.applyPlayerDamage(Math.max(1, e.atk - this.playerDef), () => {
           if (this.playerHp <= 0) {
