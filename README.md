@@ -5,6 +5,10 @@
 A dark roguelike dungeon crawler built with Phaser.js.
 Start as nobody. Descend into darkness. Become legend.
 
+## 🌐 Play Now
+
+**https://void-gate.vercel.app/**
+
 ## 🎮 Gameplay
 
 - Turn-based dungeon crawling with smooth animations
@@ -13,9 +17,10 @@ Start as nobody. Descend into darkness. Become legend.
 - Fog of war with true line-of-sight
 - Multi-floor dungeon — descend AND ascend
 - Floor state preserved (cleared rooms stay cleared)
-- Items & loot system with auto pickup
-- Stat allocation system (ATK / DEF / HP)
 - Safe spawn room on every floor
+- Items & loot with auto pickup
+- Stat allocation system (ATK / DEF / HP)
+- Click / Tap to move (mobile friendly)
 
 ## 🕹️ Controls
 
@@ -25,9 +30,9 @@ Start as nobody. Descend into darkness. Become legend.
 | Click / Tap | Move to tile |
 | Step on ▼ | Descend floor |
 | Step on ▲ | Ascend floor |
-| P | Open character profile |
+| P | Character profile |
 | ESC | Close overlay |
-| R | Restart (on death) |
+| R | Restart on death |
 
 ## ⚔️ Items
 
@@ -35,8 +40,8 @@ Start as nobody. Descend into darkness. Become legend.
 |------|--------|
 | ! Health Potion | Heals 20 HP |
 | ! Big Potion | Heals 50 HP |
-| / Iron Sword | +3 ATK permanent |
-| ] Buckler | +2 DEF permanent |
+| / Iron Sword | +3 ATK |
+| ] Buckler | +2 DEF |
 | $ Gold Coin | +10 Gold |
 | ♥ Life Crystal | +10 Max HP |
 
@@ -49,36 +54,4 @@ Start as nobody. Descend into darkness. Become legend.
 | 11–15 | The Forge |
 | 16+ | The Abyss |
 
-## 🛠️ Tech Stack
-
-- Phaser.js 3
-- Vite
-- Vanilla JavaScript
-
-## 🚀 Run Locally
-```bash
-npm install
-npm run dev
-```
-
-## 📍 Status
-
-> 🚧 In active development — Sprint 2
-
-## 🗺️ Roadmap
-
-- [x] Procedural dungeon generation
-- [x] Turn-based combat + smooth animation
-- [x] Enemy AI (idle/hunt/search)
-- [x] Fog of war + true LOS
-- [x] Multi-floor with floor state
-- [x] Items & loot system
-- [x] Stat allocation system
-- [x] Click to move (mobile ready)
-- [ ] Enemy variety (goblin, skeleton, boss)
-- [ ] Inventory + shop system
-- [ ] Boss fights
-- [ ] Visual assets (pixel art)
-- [ ] Meta progression
-- [ ] AI narrator
-- [ ] Deploy online
+## 🛠️ Tech S
