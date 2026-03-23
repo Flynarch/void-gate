@@ -421,19 +421,25 @@ export class GameScene extends Phaser.Scene {
       .setDepth(201)
       .setVisible(false)
       .setInteractive({ useHandCursor: true });
-    this.profileBtnAtk.on('pointerdown', () => {
+    this.profileBtnAtk.on('pointerdown', (pointer, localX, localY, event) => {
+      if (event) event.stopPropagation();
       this.spendStatPoint('atk');
       this.refreshProfileOverlay();
     });
-    this.profileBtnDef.on('pointerdown', () => {
+    this.profileBtnDef.on('pointerdown', (pointer, localX, localY, event) => {
+      if (event) event.stopPropagation();
       this.spendStatPoint('def');
       this.refreshProfileOverlay();
     });
-    this.profileBtnHp.on('pointerdown', () => {
+    this.profileBtnHp.on('pointerdown', (pointer, localX, localY, event) => {
+      if (event) event.stopPropagation();
       this.spendStatPoint('hp');
       this.refreshProfileOverlay();
     });
-    this.profileCloseBtn.on('pointerdown', () => this.toggleProfileOverlay());
+    this.profileCloseBtn.on('pointerdown', (pointer, localX, localY, event) => {
+      if (event) event.stopPropagation();
+      this.toggleProfileOverlay();
+    });
     [this.profileBtnAtk, this.profileBtnDef, this.profileBtnHp].forEach((btn) => {
       btn.on('pointerover', () => btn.setStyle({ backgroundColor: '#2a2a44' }));
       btn.on('pointerout', () => btn.setStyle({ backgroundColor: '#1a1a2e' }));
@@ -547,6 +553,7 @@ export class GameScene extends Phaser.Scene {
       if (e.stateIcon) {
         this.tweens.killTweensOf(e.stateIcon);
         e.stateIcon.destroy();
+        e.stateIcon = null;
       }
       e.sprite.destroy();
     }
@@ -1068,6 +1075,7 @@ export class GameScene extends Phaser.Scene {
             // Step 4: Build floor lalu fade in
             this.time.delayedCall(1000, () => {
               this.buildFloor(false);
+              this.player.setDepth(55);
               this.player.setVisible(true);
               this.player.setAlpha(1);
               this.markExplored();
