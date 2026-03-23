@@ -638,40 +638,15 @@ export class GameScene extends Phaser.Scene {
       .setDepth(320)
       .setVisible(false);
 
+    // Force initial layout
+    this.time.delayedCall(50, () => {
+      const w = this.scale.width;
+      const h = this.scale.height;
+      this.repositionUI(w, h);
+    });
+
     this.scale.on('resize', (gameSize) => {
-      const w = gameSize.width;
-      const h = gameSize.height;
-      this.overlayFade.setPosition(w/2, h/2).setSize(w, h);
-      this.uiFloorLabel.setPosition(w - 10, 10);
-      this.uiProfileBtn.setPosition(w - 10, h - 10);
-      if (this.uiProfileHint && this.uiProfileHint.active) this.uiProfileHint.setPosition(w - 10, h - 26);
-      this.uiProfileBadge.setPosition(w - 10, h - 28);
-      this.profileOverlayBg.setPosition(w/2, h/2);
-      this.profileOverlayTitle.setPosition(w/2, h/2 - 130);
-      
-      const statOffsets = [-90, -65, -40, -15, 15];
-      let i = 0;
-      for (const key of ['hp', 'atk', 'def', 'level', 'pts']) {
-        const rowProps = this.profileStatTexts[key];
-        if (rowProps) {
-          rowProps.lbl.setPosition(w/2 - 100, h/2 + statOffsets[i]);
-          rowProps.val.setPosition(w/2, h/2 + statOffsets[i]);
-        }
-        i++;
-      }
-      
-      this.profileBtnAtk.setPosition(w/2, h/2 + 50);
-      this.profileBtnDef.setPosition(w/2, h/2 + 80);
-      this.profileBtnHp.setPosition(w/2, h/2 + 110);
-      this.profileCloseBtn.setPosition(w/2, h/2 + 145);
-      
-      this.gameOverTitle.setPosition(w/2, h/2 - 30);
-      this.gameOverStats.setPosition(w/2, h/2 + 15);
-      this.gameOverRestart.setPosition(w/2, h/2 + 70);
-      
-      if (this.burstLevelUp && this.burstLevelUp.active) {
-        this.burstLevelUp.setPosition(w/2, this.burstLevelUp.y);
-      }
+      this.repositionUI(gameSize.width, gameSize.height);
     });
 
     this.buildFloor(true);
@@ -715,8 +690,9 @@ export class GameScene extends Phaser.Scene {
       if (this.profileOverlayOpen) return;
 
       // Convert screen coords ke world coords
-      const worldX = pointer.worldX;
-      const worldY = pointer.worldY;
+      const cam = this.cameras.main;
+      const worldX = pointer.x / cam.zoom + cam.scrollX;
+      const worldY = pointer.y / cam.zoom + cam.scrollY;
       const tx = Math.floor(worldX / TILE);
       const ty = Math.floor(worldY / TILE);
 
@@ -1556,10 +1532,14 @@ export class GameScene extends Phaser.Scene {
     if (this.isTransitioningFloor) return;
     this.isTransitioningFloor = true;
     this.processingTurn = true;
-    const spawnX = this.stairs ? this.stairs.gx : null;
-    const spawnY = this.stairs ? this.stairs.gy : null;
     this.saveCurrentFloorState();
+    
     const targetFloor = this.floor - 1;
+    const targetState = this.floorStates.get(targetFloor);
+    
+    // Spawn di stairs DOWN floor tujuan (yang tersimpan)
+    const spawnX = targetState ? targetState.stairsGx : null;
+    const spawnY = targetState ? targetState.stairsGy : null;
 
     this.cameras.main.shake(200, 0.01);
     this.tweens.add({
@@ -1588,7 +1568,9 @@ export class GameScene extends Phaser.Scene {
               this.floor = targetFloor;
               this.buildFloor(false);
               
-              if (spawnX !== null && spawnY !== null) {
+              if (spawnX !== null && spawnY !== null
+                  && spawnX >= 0 && spawnX < GW
+                  && spawnY >= 0 && spawnY < GH) {
                 this.px = spawnX;
                 this.py = spawnY;
                 this.player.setPosition(
@@ -2290,5 +2272,38 @@ export class GameScene extends Phaser.Scene {
     };
 
     runAt(0);
+  }
+
+  repositionUI(w, h) {
+    if (this.overlayFade) this.overlayFade.setPosition(w/2, h/2).setSize(w, h);
+    if (this.uiFloorLabel) this.uiFloorLabel.setPosition(w - 10, 10);
+    if (this.uiProfileBtn) this.uiProfileBtn.setPosition(w - 10, h - 10);
+    if (this.uiProfileHint && this.uiProfileHint.active) this.uiProfileHint.setPosition(w - 10, h - 26);
+    if (this.uiProfileBadge) this.uiProfileBadge.setPosition(w - 10, h - 28);
+    
+    if (this.profileOverlayBg) this.profileOverlayBg.setPosition(w/2, h/2).setSize(280, 320);
+    if (this.profileOverlayTitle) this.profileOverlayTitle.setPosition(w/2, h/2 - 130);
+
+    if (this.profileStatTexts) {
+      const statOffsets = [-90, -65, -40, -15, 20];
+      Object.keys(this.profileStatTexts).forEach((key, i) => {
+        const row = this.profileStatTexts[key];
+        if (row.lbl) row.lbl.setPosition(w/2 - 100, h/2 + statOffsets[i]);
+        if (row.val) row.val.setPosition(w/2, h/2 + statOffsets[i]);
+      });
+    }
+
+    if (this.profileBtnAtk) this.profileBtnAtk.setPosition(w/2, h/2 + 60);
+    if (this.profileBtnDef) this.profileBtnDef.setPosition(w/2, h/2 + 95);
+    if (this.profileBtnHp) this.profileBtnHp.setPosition(w/2, h/2 + 130);
+    if (this.profileCloseBtn) this.profileCloseBtn.setPosition(w/2, h/2 + 165);
+
+    if (this.gameOverTitle) this.gameOverTitle.setPosition(w/2, h/2 - 30);
+    if (this.gameOverStats) this.gameOverStats.setPosition(w/2, h/2 + 15);
+    if (this.gameOverRestart) this.gameOverRestart.setPosition(w/2, h/2 + 70);
+    
+    if (this.burstLevelUp && this.burstLevelUp.active) {
+      this.burstLevelUp.setPosition(w/2, this.burstLevelUp.y);
+    }
   }
 }

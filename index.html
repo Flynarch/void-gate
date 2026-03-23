@@ -16,15 +16,25 @@
           content="black-translucent">
     <title>void-gate</title>
     <style>
-      * { margin: 0; padding: 0; }
-      body { 
+      html, body {
+        width: 100%;
+        height: 100%;
+        margin: 0;
+        padding: 0;
         overflow: hidden;
         background: #000;
-        touch-action: none;
+      }
+      #app {
+        width: 100%;
+        height: 100%;
+        display: flex;
+        align-items: center;
+        justify-content: center;
       }
       canvas {
         display: block;
         touch-action: none;
+        image-rendering: pixelated;
       }
     </style>
   </head>
