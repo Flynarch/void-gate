@@ -54,4 +54,37 @@ Start as nobody. Descend into darkness. Become legend.
 | 11–15 | The Forge |
 | 16+ | The Abyss |
 
-## 🛠️ Tech S
+## 🛠️ Tech Stack
+
+- Phaser.js 3
+- Vite
+- Vanilla JavaScript
+
+## 🚀 Run Locally
+```bash
+npm install
+npm run dev
+```
+
+## 📍 Status
+
+> 🚧 In active development — Sprint 2
+
+## 🗺️ Roadmap
+
+- [x] Procedural dungeon generation
+- [x] Turn-based combat + smooth animation  
+- [x] Enemy AI (idle/hunt/search)
+- [x] Fog of war + true LOS
+- [x] Multi-floor with preserved state
+- [x] Items & loot system
+- [x] Stat allocation system
+- [x] Click to move (mobile ready)
+- [x] Deployed online
+- [ ] Enemy variety
+- [ ] Visual assets (pixel art)
+- [ ] Inventory + shop
+- [ ] Boss fights
+- [ ] Sound effects
+- [ ] Meta progression
+- [ ] AI narrator
