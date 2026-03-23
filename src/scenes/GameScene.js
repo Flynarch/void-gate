@@ -808,8 +808,8 @@ export class GameScene extends Phaser.Scene {
 
       this.player.setDepth(58);
 
-      this.cameras.main.setBounds(0, 0, GW * TILE, GH * TILE);
       this.cameras.main.startFollow(this.player, true, 1, 1);
+      this.cameras.main.centerOn(this.player.x, this.player.y);
 
       // Restore stairs down
       if (saved.stairsGx !== null && saved.stairsGy !== null) {
@@ -982,8 +982,8 @@ export class GameScene extends Phaser.Scene {
     this.player.setAlpha(1);
     this.player.setScale(1);
     this.player.clearTint();
-    this.cameras.main.setBounds(0, 0, GW * TILE, GH * TILE);
     this.cameras.main.startFollow(this.player, true, 1, 1);
+    this.cameras.main.centerOn(this.player.x, this.player.y);
 
     const enemyHp = ENEMY_BASE_HP + (this.floor - 1) * 3;
     const enemyAtk = ENEMY_BASE_ATK + (this.floor - 1);
@@ -2304,6 +2304,10 @@ export class GameScene extends Phaser.Scene {
     
     if (this.burstLevelUp && this.burstLevelUp.active) {
       this.burstLevelUp.setPosition(w/2, this.burstLevelUp.y);
+    }
+
+    if (this.player && this.player.active) {
+      this.cameras.main.centerOn(this.player.x, this.player.y);
     }
   }
 }
