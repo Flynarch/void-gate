@@ -7,21 +7,47 @@ Start as nobody. Descend into darkness. Become legend.
 
 ## 🎮 Gameplay
 
-- Turn-based dungeon crawling
-- Procedural dungeon generation
-- Enemy AI with 3 states (idle/hunt/search)
+- Turn-based dungeon crawling with smooth animations
+- Procedural dungeon generation every run
+- Enemy AI with 3 states (idle / hunt / search)
 - Fog of war with true line-of-sight
-- Floor progression with scaling difficulty
-- Level up system with stat choices
+- Multi-floor dungeon — descend AND ascend
+- Floor state preserved (cleared rooms stay cleared)
+- Items & loot system with auto pickup
+- Stat allocation system (ATK / DEF / HP)
+- Safe spawn room on every floor
 
 ## 🕹️ Controls
 
 | Key | Action |
 |-----|--------|
 | WASD / Arrow Keys | Move |
-| Step on enemy | Attack |
+| Click / Tap | Move to tile |
 | Step on ▼ | Descend floor |
+| Step on ▲ | Ascend floor |
+| P | Open character profile |
+| ESC | Close overlay |
 | R | Restart (on death) |
+
+## ⚔️ Items
+
+| Item | Effect |
+|------|--------|
+| ! Health Potion | Heals 20 HP |
+| ! Big Potion | Heals 50 HP |
+| / Iron Sword | +3 ATK permanent |
+| ] Buckler | +2 DEF permanent |
+| $ Gold Coin | +10 Gold |
+| ♥ Life Crystal | +10 Max HP |
+
+## 🗺️ Biomes
+
+| Floors | Biome |
+|--------|-------|
+| 1–5 | The Crypt |
+| 6–10 | The Overgrowth |
+| 11–15 | The Forge |
+| 16+ | The Abyss |
 
 ## 🛠️ Tech Stack
 
@@ -37,13 +63,22 @@ npm run dev
 
 ## 📍 Status
 
-> 🚧 In active development — Sprint 1
+> 🚧 In active development — Sprint 2
 
 ## 🗺️ Roadmap
 
-- [ ] Items & loot system
-- [ ] 3 classes (Warrior, Mage, Necromancer)
+- [x] Procedural dungeon generation
+- [x] Turn-based combat + smooth animation
+- [x] Enemy AI (idle/hunt/search)
+- [x] Fog of war + true LOS
+- [x] Multi-floor with floor state
+- [x] Items & loot system
+- [x] Stat allocation system
+- [x] Click to move (mobile ready)
+- [ ] Enemy variety (goblin, skeleton, boss)
+- [ ] Inventory + shop system
 - [ ] Boss fights
+- [ ] Visual assets (pixel art)
 - [ ] Meta progression
-- [ ] AI storyteller (death narrative, lore)
+- [ ] AI narrator
 - [ ] Deploy online
