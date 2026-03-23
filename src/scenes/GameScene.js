@@ -1063,10 +1063,6 @@ export class GameScene extends Phaser.Scene {
     if (x < 0 || x >= GW || y < 0 || y >= GH) return false;
     if (g[y][x] !== 0) return false;
 
-    const safe = this.rooms[0];
-    if (x >= safe.x && x < safe.x + safe.w &&
-        y >= safe.y && y < safe.y + safe.h) return false;
-
     if (x === goalX && y === goalY) return true;
     if (x === this.px && y === this.py) return false;
     for (const e of this.enemies) {
@@ -1461,7 +1457,6 @@ export class GameScene extends Phaser.Scene {
     else if (stat === "def") this.playerDef += 1;
     else if (stat === "hp") {
       this.playerMaxHp += 8;
-      this.playerHp += 8;
     }
     this.refreshHUD();
   }

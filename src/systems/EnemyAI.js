@@ -22,10 +22,6 @@ export function pickRandomPatrolStep(scene, e) {
     if (nx < 0 || nx >= GW || ny < 0 || ny >= GH) continue;
     if (scene.grid[ny][nx] !== 0) continue;
     
-    const safe = scene.rooms[0];
-    if (nx >= safe.x && nx < safe.x + safe.w &&
-        ny >= safe.y && ny < safe.y + safe.h) continue;
-
     if (nx === scene.px && ny === scene.py) continue;
     if (scene.enemyAt(nx, ny)) continue;
     return { x: nx, y: ny };
@@ -259,8 +255,6 @@ export function runEnemyTurn(scene, onAllEnemiesDone) {
 
     const occ = scene.enemyAt(next.x, next.y);
     if (occ && occ !== e) {
-      e.cachedPath = [];
-      e.pathCacheTurn = -1000;
       runAt(i + 1);
       return;
     }
