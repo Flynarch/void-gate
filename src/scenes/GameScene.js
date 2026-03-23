@@ -29,7 +29,7 @@ export class GameScene extends Phaser.Scene {
   }
 
   create() {
-    this.cameras.main.setBackgroundColor("#0a0a0f");
+    this.cameras.main.setBackgroundColor("#000000");
     const W = this.scale.width;
     const H = this.scale.height;
     this.floor = 1;
@@ -978,7 +978,12 @@ export class GameScene extends Phaser.Scene {
     for (let y = 0; y < GH; y++) {
       for (let x = 0; x < GW; x++) {
         if (!this.explored[y][x]) {
+          // Belum dieksplorasi = Hitam pekat
           g.fillStyle(0x000000, 1);
+          g.fillRect(x * TILE, y * TILE, TILE, TILE);
+        } else if (!this.playerCanSeeTile(x, y)) {
+          // Sudah dieksplorasi tapi di luar pandangan (Memory) = Hitam semi-transparan
+          g.fillStyle(0x000000, 0.6);
           g.fillRect(x * TILE, y * TILE, TILE, TILE);
         }
       }
@@ -989,16 +994,18 @@ export class GameScene extends Phaser.Scene {
   refreshTileVisibility() {
     for (let y = 0; y < GH; y++) {
       for (let x = 0; x < GW; x++) {
-        const vis = this.explored[y][x] && this.playerCanSeeTile(x, y);
         const s = this.tileSprites[y][x];
         if (!this.explored[y][x]) {
           s.setVisible(false);
         } else {
+          // Kembalikan lantai ke normal, efek gelap diurus oleh fogLayer
           s.setVisible(true);
-          s.setAlpha(vis ? 1 : 0.5);
+          s.setAlpha(1);
+          s.clearTint();
         }
       }
     }
+
     if (this.stairsFloatHint && this.stairs) {
       this.stairsFloatHint.setVisible(
         this.playerCanSeeTile(this.stairs.gx, this.stairs.gy),
@@ -1016,6 +1023,7 @@ export class GameScene extends Phaser.Scene {
     }
 
     for (const item of this.groundItems || []) {
+      // Item hanya terlihat jika ada di jarak pandang
       const vis =
         this.explored[item.gy] &&
         this.explored[item.gy][item.gx] &&
@@ -1027,6 +1035,7 @@ export class GameScene extends Phaser.Scene {
   refreshEnemyVisibility() {
     for (const e of this.enemies) {
       if (e.hp <= 0) continue;
+      // Musuh hanya terlihat jika ada di jarak pandang
       const vis =
         this.explored[e.gy] &&
         this.explored[e.gy][e.gx] &&

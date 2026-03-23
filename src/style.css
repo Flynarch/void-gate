@@ -3,22 +3,31 @@
   padding: 0;
   box-sizing: border-box;
 }
-html, body {
-  width: 100%;
-  height: 100%;
+
+html,
+body {
+  width: 100vw;
+  height: 100vh;
   overflow: hidden;
-  background: #000;
+  /* Paksa seluruh layar di luar canvas menjadi warna dinding dungeon */
+  background-color: #000000;
   touch-action: none;
 }
+
 #app {
   width: 100vw;
   height: 100vh;
   display: flex;
-  align-items: center;
   justify-content: center;
+  align-items: center;
+  /* Pastikan kontainer utama juga sewarna */
+  background-color: #000000;
 }
+
 canvas {
   display: block;
   touch-action: none;
   image-rendering: pixelated;
+  /* Opsional: Tambahkan sedikit bayangan agar canvas game lebih menonjol dari background */
+  box-shadow: 0 0 30px rgba(0, 0, 0, 0.9);
 }

@@ -13,7 +13,7 @@ export const gameConfig = {
     autoCenter: Phaser.Scale.CENTER_BOTH,
   },
   pixelArt: true,
-  backgroundColor: '#0a0a0f',
+  backgroundColor: '#000000',
   physics: {
     default: 'arcade',
     arcade: {
