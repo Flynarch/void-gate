@@ -636,7 +636,18 @@ export class GameScene extends Phaser.Scene {
       .setOrigin(0.5)
       .setScrollFactor(0)
       .setDepth(320)
-      .setVisible(false);
+      .setVisible(false)
+      .setInteractive({ useHandCursor: true });
+
+    this.gameOverRestart.on("pointerdown", () => {
+      if (this.isGameOver) this.scene.restart();
+    });
+    this.gameOverRestart.on("pointerover", () =>
+      this.gameOverRestart.setStyle({ color: "#ffffff" }),
+    );
+    this.gameOverRestart.on("pointerout", () =>
+      this.gameOverRestart.setStyle({ color: "#aaaaaa" }),
+    );
 
     // Force initial layout
     this.time.delayedCall(50, () => {
@@ -1353,6 +1364,11 @@ export class GameScene extends Phaser.Scene {
       const ny = e.gy + dy;
       if (nx < 0 || nx >= GW || ny < 0 || ny >= GH) continue;
       if (this.grid[ny][nx] !== 0) continue;
+      
+      const safe = this.rooms[0];
+      if (nx >= safe.x && nx < safe.x + safe.w &&
+          ny >= safe.y && ny < safe.y + safe.h) continue;
+
       if (nx === this.px && ny === this.py) continue;
       if (this.enemyAt(nx, ny)) continue;
       return { x: nx, y: ny };
@@ -1386,6 +1402,11 @@ export class GameScene extends Phaser.Scene {
     const g = this.grid;
     if (x < 0 || x >= GW || y < 0 || y >= GH) return false;
     if (g[y][x] !== 0) return false;
+
+    const safe = this.rooms[0];
+    if (x >= safe.x && x < safe.x + safe.w &&
+        y >= safe.y && y < safe.y + safe.h) return false;
+
     if (x === goalX && y === goalY) return true;
     if (x === this.px && y === this.py) return false;
     for (const e of this.enemies) {
@@ -2275,13 +2296,21 @@ export class GameScene extends Phaser.Scene {
   }
 
   repositionUI(w, h) {
-    if (this.overlayFade) this.overlayFade.setPosition(w/2, h/2).setSize(w, h);
+    if (this.overlayFade) {
+      this.overlayFade.setPosition(w/2, h/2);
+      this.overlayFade.width = w;
+      this.overlayFade.height = h;
+    }
     if (this.uiFloorLabel) this.uiFloorLabel.setPosition(w - 10, 10);
     if (this.uiProfileBtn) this.uiProfileBtn.setPosition(w - 10, h - 10);
     if (this.uiProfileHint && this.uiProfileHint.active) this.uiProfileHint.setPosition(w - 10, h - 26);
     if (this.uiProfileBadge) this.uiProfileBadge.setPosition(w - 10, h - 28);
     
-    if (this.profileOverlayBg) this.profileOverlayBg.setPosition(w/2, h/2).setSize(280, 320);
+    if (this.profileOverlayBg) {
+      this.profileOverlayBg.setPosition(w/2, h/2);
+      this.profileOverlayBg.width = 280;
+      this.profileOverlayBg.height = 320;
+    }
     if (this.profileOverlayTitle) this.profileOverlayTitle.setPosition(w/2, h/2 - 130);
 
     if (this.profileStatTexts) {
