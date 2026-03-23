@@ -236,26 +236,16 @@ export class GameScene extends Phaser.Scene {
     this.playerHp = this.playerMaxHp;
     this.processingTurn = false;
     this.isTransitioningFloor = false;
-    this.isLevelUpChoosing = false;
     this.isGameOver = false;
+    this.playerStatPoints = 0;
 
     this.tileSprites = [];
     this.enemies = [];
     this.fogLayer = this.add.graphics();
     this.stairs = null;
-    this.stairsHint = null;
+    this.stairsFloatHint = null;
 
     this.overlayFade = this.add.rectangle(240, 240, 480, 480, 0x000000, 0).setScrollFactor(0).setDepth(300);
-    this.floorTransitionText = this.add
-      .text(240, 240, '', {
-        fontFamily: 'monospace',
-        fontSize: '28px',
-        color: '#ffffff',
-      })
-      .setOrigin(0.5)
-      .setScrollFactor(0)
-      .setDepth(301)
-      .setVisible(false);
 
     this.uiHpBarBg = this.add.graphics().setScrollFactor(0).setDepth(100);
     this.uiHpBarBg.fillStyle(0x222222, 1);
@@ -287,10 +277,167 @@ export class GameScene extends Phaser.Scene {
       .setOrigin(1, 0)
       .setScrollFactor(0)
       .setDepth(100);
-    this.stairsHint = this.add
-      .text(10, 92, '', { fontFamily: 'monospace', fontSize: '11px', color: '#f0c040' })
+    this.uiProfileBtn = this.add
+      .text(470, 470, '[P] PROFILE', {
+        fontFamily: 'monospace',
+        fontSize: '11px',
+        color: '#9988cc',
+        backgroundColor: '#12121f',
+        padding: { x: 6, y: 3 },
+      })
+      .setOrigin(1, 1)
       .setScrollFactor(0)
-      .setDepth(100);
+      .setDepth(102)
+      .setInteractive({ useHandCursor: true });
+    this.uiProfileBtn.on('pointerdown', (pointer, localX, localY, event) => {
+      if (event) event.stopPropagation();
+      this.toggleProfileOverlay();
+    });
+    this.uiProfileBtn.on('pointerover', () => this.uiProfileBtn.setStyle({ color: '#f0c040' }));
+    this.uiProfileBtn.on('pointerout', () => this.uiProfileBtn.setStyle({ color: '#9988cc' }));
+    this.uiProfileHint = this.add
+      .text(470, 454, 'Press P', {
+        fontFamily: 'monospace',
+        fontSize: '10px',
+        color: '#b8a8e8',
+      })
+      .setOrigin(1, 1)
+      .setScrollFactor(0)
+      .setDepth(102)
+      .setAlpha(0.95);
+    this.tweens.add({
+      targets: this.uiProfileHint,
+      alpha: 0,
+      duration: 600,
+      delay: 3000,
+      onComplete: () => this.uiProfileHint.destroy(),
+    });
+    this.uiProfileBadge = this.add
+      .text(470, 452, '!', {
+        fontFamily: 'monospace',
+        fontSize: '13px',
+        color: '#ff4444',
+        fontStyle: 'bold',
+      })
+      .setOrigin(1, 1)
+      .setScrollFactor(0)
+      .setDepth(103)
+      .setVisible(false);
+    this.profileOverlayOpen = false;
+    this.profileOverlayBg = this.add
+      .rectangle(240, 240, 280, 300, 0x0a0a1e, 0.95)
+      .setScrollFactor(0)
+      .setDepth(200)
+      .setVisible(false)
+      .setStrokeStyle(1, 0x4a3a7a);
+    this.profileOverlayTitle = this.add
+      .text(240, 110, 'CHARACTER', {
+        fontFamily: 'monospace',
+        fontSize: '16px',
+        color: '#f0c040',
+      })
+      .setOrigin(0.5)
+      .setScrollFactor(0)
+      .setDepth(201)
+      .setVisible(false);
+    this.profileStatTexts = {};
+    const statRows = [
+      { key: 'hp', label: 'MAX HP', y: 150 },
+      { key: 'atk', label: 'ATK', y: 175 },
+      { key: 'def', label: 'DEF', y: 200 },
+      { key: 'level', label: 'LEVEL', y: 225 },
+      { key: 'pts', label: 'POINTS', y: 255 },
+    ];
+    statRows.forEach((row) => {
+      const lbl = this.add
+        .text(140, row.y, `${row.label}:`, {
+          fontFamily: 'monospace',
+          fontSize: '13px',
+          color: '#9988cc',
+        })
+        .setScrollFactor(0)
+        .setDepth(201)
+        .setVisible(false);
+      const val = this.add
+        .text(240, row.y, '—', {
+          fontFamily: 'monospace',
+          fontSize: '13px',
+          color: '#ffffff',
+        })
+        .setScrollFactor(0)
+        .setDepth(201)
+        .setVisible(false);
+      this.profileStatTexts[row.key] = { lbl, val };
+    });
+    this.profileBtnAtk = this.add
+      .text(240, 290, '[+] SPEND ON ATK  (+2)', {
+        fontFamily: 'monospace',
+        fontSize: '12px',
+        color: '#f0c040',
+        backgroundColor: '#1a1a2e',
+        padding: { x: 8, y: 5 },
+      })
+      .setOrigin(0.5)
+      .setScrollFactor(0)
+      .setDepth(201)
+      .setVisible(false)
+      .setInteractive({ useHandCursor: true });
+    this.profileBtnDef = this.add
+      .text(240, 320, '[+] SPEND ON DEF  (+1)', {
+        fontFamily: 'monospace',
+        fontSize: '12px',
+        color: '#f0c040',
+        backgroundColor: '#1a1a2e',
+        padding: { x: 8, y: 5 },
+      })
+      .setOrigin(0.5)
+      .setScrollFactor(0)
+      .setDepth(201)
+      .setVisible(false)
+      .setInteractive({ useHandCursor: true });
+    this.profileBtnHp = this.add
+      .text(240, 350, '[+] SPEND ON HP   (+8)', {
+        fontFamily: 'monospace',
+        fontSize: '12px',
+        color: '#f0c040',
+        backgroundColor: '#1a1a2e',
+        padding: { x: 8, y: 5 },
+      })
+      .setOrigin(0.5)
+      .setScrollFactor(0)
+      .setDepth(201)
+      .setVisible(false)
+      .setInteractive({ useHandCursor: true });
+    this.profileCloseBtn = this.add
+      .text(240, 385, '[ CLOSE ]', {
+        fontFamily: 'monospace',
+        fontSize: '12px',
+        color: '#888888',
+        backgroundColor: '#111118',
+        padding: { x: 8, y: 5 },
+      })
+      .setOrigin(0.5)
+      .setScrollFactor(0)
+      .setDepth(201)
+      .setVisible(false)
+      .setInteractive({ useHandCursor: true });
+    this.profileBtnAtk.on('pointerdown', () => {
+      this.spendStatPoint('atk');
+      this.refreshProfileOverlay();
+    });
+    this.profileBtnDef.on('pointerdown', () => {
+      this.spendStatPoint('def');
+      this.refreshProfileOverlay();
+    });
+    this.profileBtnHp.on('pointerdown', () => {
+      this.spendStatPoint('hp');
+      this.refreshProfileOverlay();
+    });
+    this.profileCloseBtn.on('pointerdown', () => this.toggleProfileOverlay());
+    [this.profileBtnAtk, this.profileBtnDef, this.profileBtnHp].forEach((btn) => {
+      btn.on('pointerover', () => btn.setStyle({ backgroundColor: '#2a2a44' }));
+      btn.on('pointerout', () => btn.setStyle({ backgroundColor: '#1a1a2e' }));
+    });
 
     this.gameOverTitle = this.add
       .text(240, 210, '', { fontFamily: 'monospace', fontSize: '36px', color: '#ff4444' })
@@ -311,15 +458,6 @@ export class GameScene extends Phaser.Scene {
       .setDepth(320)
       .setVisible(false);
 
-    this.levelUpOverlay = this.add.rectangle(240, 240, 480, 480, 0x000000, 0.7).setScrollFactor(0).setDepth(330).setVisible(false);
-    this.levelUpTitle = this.add
-      .text(240, 150, 'LEVEL UP!', { fontFamily: 'monospace', fontSize: '30px', color: '#f0c040' })
-      .setOrigin(0.5)
-      .setScrollFactor(0)
-      .setDepth(331)
-      .setVisible(false);
-    this.levelUpButtons = [];
-
     this.buildFloor(true);
     this.refreshHUD();
 
@@ -329,7 +467,16 @@ export class GameScene extends Phaser.Scene {
         this.scene.restart();
         return;
       }
-      if (this.playerHp <= 0 || this.isGameOver || this.isLevelUpChoosing || this.isTransitioningFloor) return;
+      if (e.key === 'p' || e.key === 'P') {
+        this.toggleProfileOverlay();
+        return;
+      } else if (e.key === 'Escape') {
+        if (this.profileOverlayOpen) {
+          this.toggleProfileOverlay();
+          return;
+        }
+      }
+      if (this.playerHp <= 0 || this.isGameOver || this.isTransitioningFloor) return;
       if (this.processingTurn) return;
 
       let dx = 0;
@@ -342,9 +489,53 @@ export class GameScene extends Phaser.Scene {
 
       this.tryPlayerMove(dx, dy);
     });
+
+    // Click to move
+    this.input.on('pointerdown', (pointer) => {
+      if (this.processingTurn) return;
+      if (this.isTransitioningFloor) return;
+      if (this.isGameOver) return;
+      if (this.profileOverlayOpen) return;
+
+      // Convert screen coords ke world coords
+      const worldX = pointer.worldX;
+      const worldY = pointer.worldY;
+      const tx = Math.floor(worldX / TILE);
+      const ty = Math.floor(worldY / TILE);
+
+      if (tx < 0 || tx >= GW || ty < 0 || ty >= GH) return;
+      if (this.grid[ty][tx] === 1) return; // wall
+
+      // Kalau click tepat 1 tile di sebelah → langsung move
+      const dx = tx - this.px;
+      const dy = ty - this.py;
+      if (Math.abs(dx) + Math.abs(dy) === 1) {
+        this.tryPlayerMove(dx, dy);
+        return;
+      }
+
+      // Kalau lebih jauh → cari path, ambil 1 step pertama
+      const path = findPath(this.px, this.py, tx, ty, (x, y) => {
+        if (x < 0 || x >= GW || y < 0 || y >= GH) return false;
+        if (this.grid[y][x] !== 0) return false;
+        return true;
+      });
+
+      if (path.length === 0) return;
+
+      // Move 1 step saja
+      const step = path[0];
+      const sdx = step.x - this.px;
+      const sdy = step.y - this.py;
+      this.tryPlayerMove(sdx, sdy);
+
+      // Visual: tampilkan path highlight singkat
+      this.showClickPath(path);
+    });
   }
 
   buildFloor(firstBuild = false) {
+    this.fogLayer.clear();
     for (const row of this.tileSprites) {
       for (const s of row) {
         s.destroy();
@@ -366,7 +557,10 @@ export class GameScene extends Phaser.Scene {
       this.stairs.destroy();
       this.stairs = null;
     }
-    this.stairsHint.setText('');
+    if (this.stairsFloatHint) {
+      this.stairsFloatHint.destroy();
+      this.stairsFloatHint = null;
+    }
 
     const rng = Phaser.Math.RND;
     const { grid, rooms } = generateDungeon(rng);
@@ -394,14 +588,21 @@ export class GameScene extends Phaser.Scene {
 
     if (firstBuild) {
       this.player = this.physics.add.sprite(this.px * TILE + TILE / 2, this.py * TILE + TILE / 2, 'player');
+      this.player.setDepth(55);
       this.player.body.setSize(16, 16);
       this.player.setCollideWorldBounds(false);
-      this.cameras.main.startFollow(this.player, true, 1, 1);
     } else {
       this.player.setPosition(this.px * TILE + TILE / 2, this.py * TILE + TILE / 2);
     }
 
+    this.player.setPosition(this.px * TILE + TILE / 2, this.py * TILE + TILE / 2);
+    this.player.setVisible(true);
+    this.player.setDepth(55);
+    this.player.setAlpha(1);
+    this.player.setScale(1);
+    this.player.clearTint();
     this.cameras.main.setBounds(0, 0, GW * TILE, GH * TILE);
+    this.cameras.main.startFollow(this.player, true, 1, 1);
 
     const enemyHp = ENEMY_BASE_HP + (this.floor - 1) * 3;
     const enemyAtk = ENEMY_BASE_ATK + (this.floor - 1);
@@ -418,6 +619,7 @@ export class GameScene extends Phaser.Scene {
     for (let i = 0; i < spawnCount; i++) {
       const pos = floorTiles[i];
       const spr = this.physics.add.sprite(pos.x * TILE + TILE / 2, pos.y * TILE + TILE / 2, 'enemy');
+      spr.setDepth(52);
       spr.body.setSize(16, 16);
       this.enemies.push({
         sprite: spr,
@@ -434,6 +636,47 @@ export class GameScene extends Phaser.Scene {
         searchTurns: 0,
         roamStepsLeft: -1,
         stateIcon: null,
+      });
+    }
+
+    const stairRoom = rooms[rooms.length - 1];
+    const stairPos = { x: stairRoom.cx, y: stairRoom.cy };
+    this.stairs = this.add
+      .text(stairPos.x * TILE + TILE / 2, stairPos.y * TILE + TILE / 2, '▼', {
+        fontFamily: 'monospace',
+        fontSize: '16px',
+        color: '#f0c040',
+      })
+      .setOrigin(0.5)
+      .setDepth(56);
+    this.tweens.add({
+      targets: this.stairs,
+      alpha: { from: 0.6, to: 1 },
+      duration: 800,
+      yoyo: true,
+      repeat: -1,
+    });
+    this.stairs.gx = stairPos.x;
+    this.stairs.gy = stairPos.y;
+    if (this.stairsFloatHint) this.stairsFloatHint.destroy();
+    this.stairsFloatHint = null;
+    if (this.floor <= 1) {
+      this.stairsFloatHint = this.add
+        .text(stairPos.x * TILE + TILE / 2, stairPos.y * TILE - 10, '▼ descend', {
+          fontFamily: 'monospace',
+          fontSize: '9px',
+          color: '#f0c040',
+        })
+        .setOrigin(0.5, 1)
+        .setDepth(120)
+        .setAlpha(0);
+      this.time.delayedCall(500, () => {
+        if (!this.stairsFloatHint) return;
+        this.tweens.add({
+          targets: this.stairsFloatHint,
+          alpha: 1,
+          duration: 400,
+        });
       });
     }
 
@@ -528,6 +771,63 @@ export class GameScene extends Phaser.Scene {
     this.uiDefText.setText(`DEF ${this.playerDef}`);
     this.uiFloorLabel.setText(`FLOOR ${this.floor}  LV ${this.playerLevel}`);
     this.uiTurnText.setText(`TURN ${this.turn}`);
+    const hasPts = this.playerStatPoints > 0;
+    if (this.uiProfileBadge) this.uiProfileBadge.setVisible(hasPts);
+    if (this.uiProfileBtn) {
+      this.uiProfileBtn.setStyle({
+        color: hasPts ? '#ff8844' : '#9988cc',
+      });
+    }
+    if (this.profileOverlayOpen) this.refreshProfileOverlay();
+  }
+
+  toggleProfileOverlay() {
+    this.profileOverlayOpen = !this.profileOverlayOpen;
+    const vis = this.profileOverlayOpen;
+    const hasPts = this.playerStatPoints > 0;
+
+    this.profileOverlayBg.setVisible(vis);
+    this.profileOverlayTitle.setVisible(vis);
+    this.profileCloseBtn.setVisible(vis);
+
+    Object.values(this.profileStatTexts).forEach(({ lbl, val }) => {
+      lbl.setVisible(vis);
+      val.setVisible(vis);
+    });
+
+    this.profileBtnAtk.setVisible(vis && hasPts);
+    this.profileBtnDef.setVisible(vis && hasPts);
+    this.profileBtnHp.setVisible(vis && hasPts);
+
+    if (vis) this.refreshProfileOverlay();
+  }
+
+  refreshProfileOverlay() {
+    if (!this.profileOverlayOpen) return;
+    const hasPts = this.playerStatPoints > 0;
+
+    const vals = {
+      hp: `${this.playerMaxHp}`,
+      atk: `${this.playerAtk}`,
+      def: `${this.playerDef}`,
+      level: `${this.playerLevel}`,
+      pts: `${this.playerStatPoints}${hasPts ? '  ← UNSPENT!' : ''}`,
+    };
+
+    Object.entries(vals).forEach(([key, v]) => {
+      if (this.profileStatTexts[key]) {
+        this.profileStatTexts[key].val.setText(v);
+        if (key === 'pts') {
+          this.profileStatTexts[key].val.setStyle({
+            color: hasPts ? '#ff8844' : '#888888',
+          });
+        }
+      }
+    });
+
+    this.profileBtnAtk.setVisible(hasPts);
+    this.profileBtnDef.setVisible(hasPts);
+    this.profileBtnHp.setVisible(hasPts);
   }
 
   markExplored() {
@@ -566,6 +866,9 @@ export class GameScene extends Phaser.Scene {
           s.setAlpha(vis ? 1 : 0.5);
         }
       }
+    }
+    if (this.stairsFloatHint && this.stairs) {
+      this.stairsFloatHint.setVisible(this.playerCanSeeTile(this.stairs.gx, this.stairs.gy));
     }
   }
 
@@ -651,64 +954,142 @@ export class GameScene extends Phaser.Scene {
     });
   }
 
-  spawnStairs() {
-    if (this.stairs) return;
-    const options = [];
-    for (let y = 0; y < GH; y++) {
-      for (let x = 0; x < GW; x++) {
-        if (this.grid[y][x] === 0 && !(x === this.px && y === this.py)) options.push({ x, y });
-      }
+  showClickPath(path) {
+    // Hapus highlight lama kalau ada
+    if (this.pathHighlights) {
+      this.pathHighlights.forEach((h) => h.destroy());
     }
-    if (options.length === 0) return;
-    const pos = Phaser.Utils.Array.GetRandom(options);
-    this.stairs = this.add
-      .text(pos.x * TILE + TILE / 2, pos.y * TILE + TILE / 2, '▼', {
-        fontFamily: 'monospace',
-        fontSize: '16px',
-        color: '#f0c040',
-      })
-      .setOrigin(0.5)
-      .setDepth(56);
-    this.tweens.add({
-      targets: this.stairs,
-      alpha: { from: 0.6, to: 1 },
-      duration: 800,
-      yoyo: true,
-      repeat: -1,
-    });
-    this.stairs.gx = pos.x;
-    this.stairs.gy = pos.y;
-    this.stairsHint.setText('Step on ▼ to descend');
-  }
+    this.pathHighlights = [];
 
-  allEnemiesDead() {
-    return this.enemies.every((e) => e.hp <= 0);
+    // Tampilkan dot kecil di sepanjang path
+    path.forEach((p, i) => {
+      if (i === 0) return; // skip step pertama
+      const dot = this.add
+        .rectangle(p.x * TILE + TILE / 2, p.y * TILE + TILE / 2, 4, 4, 0x9988cc, 0.6)
+        .setDepth(55);
+
+      this.pathHighlights.push(dot);
+
+      // Fade out cepat
+      this.tweens.add({
+        targets: dot,
+        alpha: 0,
+        duration: 300,
+        delay: i * 30,
+        onComplete: () => dot.destroy(),
+      });
+    });
+
+    // Clear array setelah semua fade
+    this.time.delayedCall(path.length * 30 + 300, () => {
+      this.pathHighlights = [];
+    });
   }
 
   beginFloorTransition() {
     if (this.isTransitioningFloor) return;
     this.isTransitioningFloor = true;
     this.processingTurn = true;
+    if (this.stairsFloatHint) {
+      this.stairsFloatHint.destroy();
+      this.stairsFloatHint = null;
+    }
     this.floor += 1;
-    this.refreshHUD();
+
+    // Step 1: screen shake + fade ke hitam
+    this.cameras.main.shake(200, 0.01);
     this.tweens.add({
       targets: this.overlayFade,
       alpha: 1,
-      duration: 300,
+      duration: 400,
       onComplete: () => {
-        this.floorTransitionText.setText(`FLOOR ${this.floor}`).setVisible(true);
-        this.buildFloor(false);
-        this.time.delayedCall(220, () => {
-          this.floorTransitionText.setVisible(false);
-          this.tweens.add({
-            targets: this.overlayFade,
-            alpha: 0,
-            duration: 300,
-            onComplete: () => {
-              this.isTransitioningFloor = false;
-              this.processingTurn = false;
-            },
-          });
+        // Step 2: "DESCENDING..." text
+        const descText = this.add
+          .text(240, 210, 'DESCENDING...', {
+            fontFamily: 'monospace',
+            fontSize: '16px',
+            color: '#888888',
+          })
+          .setOrigin(0.5)
+          .setScrollFactor(0)
+          .setDepth(305)
+          .setAlpha(0);
+
+        this.tweens.add({
+          targets: descText,
+          alpha: 1,
+          duration: 200,
+          onComplete: () => {
+            // Step 3: "FLOOR X" teks besar
+            const biome =
+              this.floor <= 5
+                ? '— THE CRYPT —'
+                : this.floor <= 10
+                  ? '— THE OVERGROWTH —'
+                  : this.floor <= 15
+                    ? '— THE FORGE —'
+                    : '— THE ABYSS —';
+
+            const floorText = this.add
+              .text(240, 240, `FLOOR ${this.floor}`, {
+                fontFamily: 'monospace',
+                fontSize: '36px',
+                color: '#f0c040',
+              })
+              .setOrigin(0.5)
+              .setScrollFactor(0)
+              .setDepth(305)
+              .setScale(0.5);
+
+            const biomeText = this.add
+              .text(240, 278, biome, {
+                fontFamily: 'monospace',
+                fontSize: '14px',
+                color: '#c8b8e8',
+              })
+              .setOrigin(0.5)
+              .setScrollFactor(0)
+              .setDepth(305)
+              .setAlpha(0);
+
+            this.tweens.add({
+              targets: floorText,
+              scale: 1.0,
+              duration: 300,
+              ease: 'Back.Out',
+            });
+            this.tweens.add({
+              targets: biomeText,
+              alpha: 1,
+              duration: 300,
+              delay: 150,
+            });
+
+            // Step 4: Build floor lalu fade in
+            this.time.delayedCall(1000, () => {
+              this.buildFloor(false);
+              this.player.setVisible(true);
+              this.player.setAlpha(1);
+              this.markExplored();
+              this.updateFog();
+              this.refreshTileVisibility();
+              this.refreshHUD();
+
+              descText.destroy();
+              floorText.destroy();
+              biomeText.destroy();
+
+              this.tweens.add({
+                targets: this.overlayFade,
+                alpha: 0,
+                duration: 400,
+                onComplete: () => {
+                  this.isTransitioningFloor = false;
+                  this.processingTurn = false;
+                },
+              });
+            });
+          },
         });
       },
     });
@@ -731,67 +1112,51 @@ export class GameScene extends Phaser.Scene {
   }
 
   showLevelUpChoice(onDone) {
-    this.isLevelUpChoosing = true;
+    this.playerStatPoints += 2;
+
     const burst = this.add
-      .text(240, 120, 'LEVEL UP!', {
+      .text(240, 200, `LEVEL ${this.playerLevel}!  +2 PTS`, {
         fontFamily: 'monospace',
-        fontSize: '30px',
+        fontSize: '22px',
         color: '#f0c040',
       })
       .setOrigin(0.5)
       .setScrollFactor(0)
       .setDepth(340)
-      .setScale(0.5);
+      .setScale(0.6);
+
     this.tweens.add({
       targets: burst,
-      scale: 1.2,
-      alpha: 0,
-      duration: 550,
+      y: 160,
+      scale: 1.0,
+      duration: 400,
       ease: 'Back.Out',
-      onComplete: () => burst.destroy(),
+      onComplete: () => {
+        this.tweens.add({
+          targets: burst,
+          alpha: 0,
+          y: 130,
+          duration: 600,
+          delay: 600,
+          onComplete: () => burst.destroy(),
+        });
+      },
     });
 
-    this.levelUpOverlay.setVisible(true);
-    this.levelUpTitle.setVisible(true);
+    this.refreshHUD();
+    onDone();
+  }
 
-    const makeBtn = (y, text, apply) => {
-      const btn = this.add
-        .text(240, y, text, {
-          fontFamily: 'monospace',
-          fontSize: '16px',
-          color: '#ffffff',
-          backgroundColor: '#1a1a24',
-          padding: { x: 14, y: 8 },
-        })
-        .setOrigin(0.5)
-        .setScrollFactor(0)
-        .setDepth(332)
-        .setInteractive({ useHandCursor: true });
-      btn.on('pointerover', () => btn.setStyle({ backgroundColor: '#2a2a38' }));
-      btn.on('pointerout', () => btn.setStyle({ backgroundColor: '#1a1a24' }));
-      btn.on('pointerdown', () => {
-        apply();
-        for (const b of this.levelUpButtons) b.destroy();
-        this.levelUpButtons = [];
-        this.levelUpOverlay.setVisible(false);
-        this.levelUpTitle.setVisible(false);
-        this.isLevelUpChoosing = false;
-        this.refreshHUD();
-        onDone();
-      });
-      this.levelUpButtons.push(btn);
-    };
-
-    makeBtn(200, '+5 Max HP', () => {
-      this.playerMaxHp += 5;
-      this.playerHp += 5;
-    });
-    makeBtn(245, '+2 ATK', () => {
-      this.playerAtk += 2;
-    });
-    makeBtn(290, '+1 DEF', () => {
-      this.playerDef += 1;
-    });
+  spendStatPoint(stat) {
+    if (this.playerStatPoints <= 0) return;
+    this.playerStatPoints--;
+    if (stat === 'atk') this.playerAtk += 2;
+    else if (stat === 'def') this.playerDef += 1;
+    else if (stat === 'hp') {
+      this.playerMaxHp += 8;
+      this.playerHp += 8;
+    }
+    this.refreshHUD();
   }
 
   triggerGameOver() {
@@ -1000,10 +1365,6 @@ export class GameScene extends Phaser.Scene {
       this.processingTurn = false;
       if (this.playerHp <= 0) {
         this.triggerGameOver();
-        return;
-      }
-      if (this.allEnemiesDead()) {
-        this.spawnStairs();
       }
     });
   }
