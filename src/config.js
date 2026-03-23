@@ -6,8 +6,12 @@ import { GameScene } from './scenes/GameScene.js';
 export const gameConfig = {
   type: Phaser.AUTO,
   parent: 'app',
-  width: 480,
-  height: 480,
+  width: window.innerWidth,
+  height: window.innerHeight,
+  scale: {
+    mode: Phaser.Scale.RESIZE,
+    autoCenter: Phaser.Scale.CENTER_BOTH,
+  },
   pixelArt: true,
   backgroundColor: '#0a0a0f',
   physics: {

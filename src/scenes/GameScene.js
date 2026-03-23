@@ -339,6 +339,8 @@ export class GameScene extends Phaser.Scene {
 
   create() {
     this.cameras.main.setBackgroundColor("#0a0a0f");
+    const W = this.scale.width;
+    const H = this.scale.height;
     this.floor = 1;
     this.turn = 1;
     this.enemiesSlain = 0;
@@ -364,7 +366,7 @@ export class GameScene extends Phaser.Scene {
     this.stairsFloatHint = null;
 
     this.overlayFade = this.add
-      .rectangle(240, 240, 480, 480, 0x000000, 0)
+      .rectangle(W/2, H/2, W, H, 0x000000, 0)
       .setScrollFactor(0)
       .setDepth(300);
 
@@ -418,7 +420,7 @@ export class GameScene extends Phaser.Scene {
       .setScrollFactor(0)
       .setDepth(102);
     this.uiFloorLabel = this.add
-      .text(470, 10, "FLOOR 1  LV 1", {
+      .text(W - 10, 10, "FLOOR 1  LV 1", {
         fontFamily: "monospace",
         fontSize: "12px",
         color: "#ffffff",
@@ -427,7 +429,7 @@ export class GameScene extends Phaser.Scene {
       .setScrollFactor(0)
       .setDepth(100);
     this.uiProfileBtn = this.add
-      .text(470, 470, "[P] PROFILE", {
+      .text(W - 10, H - 10, "[P] PROFILE", {
         fontFamily: "monospace",
         fontSize: "11px",
         color: "#9988cc",
@@ -449,7 +451,7 @@ export class GameScene extends Phaser.Scene {
       this.uiProfileBtn.setStyle({ color: "#9988cc" }),
     );
     this.uiProfileHint = this.add
-      .text(470, 454, "Press P", {
+      .text(W - 10, H - 26, "Press P", {
         fontFamily: "monospace",
         fontSize: "10px",
         color: "#b8a8e8",
@@ -466,7 +468,7 @@ export class GameScene extends Phaser.Scene {
       onComplete: () => this.uiProfileHint.destroy(),
     });
     this.uiProfileBadge = this.add
-      .text(470, 452, "!", {
+      .text(W - 10, H - 28, "!", {
         fontFamily: "monospace",
         fontSize: "13px",
         color: "#ff4444",
@@ -478,13 +480,13 @@ export class GameScene extends Phaser.Scene {
       .setVisible(false);
     this.profileOverlayOpen = false;
     this.profileOverlayBg = this.add
-      .rectangle(240, 240, 280, 300, 0x0a0a1e, 0.95)
+      .rectangle(W/2, H/2, 280, 300, 0x0a0a1e, 0.95)
       .setScrollFactor(0)
       .setDepth(200)
       .setVisible(false)
       .setStrokeStyle(1, 0x4a3a7a);
     this.profileOverlayTitle = this.add
-      .text(240, 110, "CHARACTER", {
+      .text(W/2, H/2 - 130, "CHARACTER", {
         fontFamily: "monospace",
         fontSize: "16px",
         color: "#f0c040",
@@ -495,15 +497,15 @@ export class GameScene extends Phaser.Scene {
       .setVisible(false);
     this.profileStatTexts = {};
     const statRows = [
-      { key: "hp", label: "MAX HP", y: 150 },
-      { key: "atk", label: "ATK", y: 175 },
-      { key: "def", label: "DEF", y: 200 },
-      { key: "level", label: "LEVEL", y: 225 },
-      { key: "pts", label: "POINTS", y: 255 },
+      { key: "hp", label: "MAX HP", y: H/2 - 90 },
+      { key: "atk", label: "ATK", y: H/2 - 65 },
+      { key: "def", label: "DEF", y: H/2 - 40 },
+      { key: "level", label: "LEVEL", y: H/2 - 15 },
+      { key: "pts", label: "POINTS", y: H/2 + 15 },
     ];
     statRows.forEach((row) => {
       const lbl = this.add
-        .text(140, row.y, `${row.label}:`, {
+        .text(W/2 - 100, row.y, `${row.label}:`, {
           fontFamily: "monospace",
           fontSize: "13px",
           color: "#9988cc",
@@ -512,7 +514,7 @@ export class GameScene extends Phaser.Scene {
         .setDepth(201)
         .setVisible(false);
       const val = this.add
-        .text(240, row.y, "—", {
+        .text(W/2, row.y, "—", {
           fontFamily: "monospace",
           fontSize: "13px",
           color: "#ffffff",
@@ -523,7 +525,7 @@ export class GameScene extends Phaser.Scene {
       this.profileStatTexts[row.key] = { lbl, val };
     });
     this.profileBtnAtk = this.add
-      .text(240, 290, "[+] SPEND ON ATK  (+2)", {
+      .text(W/2, H/2 + 50, "[+] SPEND ON ATK  (+2)", {
         fontFamily: "monospace",
         fontSize: "12px",
         color: "#f0c040",
@@ -536,7 +538,7 @@ export class GameScene extends Phaser.Scene {
       .setVisible(false)
       .setInteractive({ useHandCursor: true });
     this.profileBtnDef = this.add
-      .text(240, 320, "[+] SPEND ON DEF  (+1)", {
+      .text(W/2, H/2 + 80, "[+] SPEND ON DEF  (+1)", {
         fontFamily: "monospace",
         fontSize: "12px",
         color: "#f0c040",
@@ -549,7 +551,7 @@ export class GameScene extends Phaser.Scene {
       .setVisible(false)
       .setInteractive({ useHandCursor: true });
     this.profileBtnHp = this.add
-      .text(240, 350, "[+] SPEND ON HP   (+8)", {
+      .text(W/2, H/2 + 110, "[+] SPEND ON HP   (+8)", {
         fontFamily: "monospace",
         fontSize: "12px",
         color: "#f0c040",
@@ -562,7 +564,7 @@ export class GameScene extends Phaser.Scene {
       .setVisible(false)
       .setInteractive({ useHandCursor: true });
     this.profileCloseBtn = this.add
-      .text(240, 385, "[ CLOSE ]", {
+      .text(W/2, H/2 + 145, "[ CLOSE ]", {
         fontFamily: "monospace",
         fontSize: "12px",
         color: "#888888",
@@ -605,7 +607,7 @@ export class GameScene extends Phaser.Scene {
     );
 
     this.gameOverTitle = this.add
-      .text(240, 210, "", {
+      .text(W/2, H/2 - 30, "", {
         fontFamily: "monospace",
         fontSize: "36px",
         color: "#ff4444",
@@ -615,7 +617,7 @@ export class GameScene extends Phaser.Scene {
       .setDepth(320)
       .setVisible(false);
     this.gameOverStats = this.add
-      .text(240, 255, "", {
+      .text(W/2, H/2 + 15, "", {
         fontFamily: "monospace",
         fontSize: "14px",
         color: "#ffffff",
@@ -626,7 +628,7 @@ export class GameScene extends Phaser.Scene {
       .setDepth(320)
       .setVisible(false);
     this.gameOverRestart = this.add
-      .text(240, 310, "", {
+      .text(W/2, H/2 + 70, "", {
         fontFamily: "monospace",
         fontSize: "14px",
         color: "#aaaaaa",
@@ -635,6 +637,42 @@ export class GameScene extends Phaser.Scene {
       .setScrollFactor(0)
       .setDepth(320)
       .setVisible(false);
+
+    this.scale.on('resize', (gameSize) => {
+      const w = gameSize.width;
+      const h = gameSize.height;
+      this.overlayFade.setPosition(w/2, h/2).setSize(w, h);
+      this.uiFloorLabel.setPosition(w - 10, 10);
+      this.uiProfileBtn.setPosition(w - 10, h - 10);
+      if (this.uiProfileHint && this.uiProfileHint.active) this.uiProfileHint.setPosition(w - 10, h - 26);
+      this.uiProfileBadge.setPosition(w - 10, h - 28);
+      this.profileOverlayBg.setPosition(w/2, h/2);
+      this.profileOverlayTitle.setPosition(w/2, h/2 - 130);
+      
+      const statOffsets = [-90, -65, -40, -15, 15];
+      let i = 0;
+      for (const key of ['hp', 'atk', 'def', 'level', 'pts']) {
+        const rowProps = this.profileStatTexts[key];
+        if (rowProps) {
+          rowProps.lbl.setPosition(w/2 - 100, h/2 + statOffsets[i]);
+          rowProps.val.setPosition(w/2, h/2 + statOffsets[i]);
+        }
+        i++;
+      }
+      
+      this.profileBtnAtk.setPosition(w/2, h/2 + 50);
+      this.profileBtnDef.setPosition(w/2, h/2 + 80);
+      this.profileBtnHp.setPosition(w/2, h/2 + 110);
+      this.profileCloseBtn.setPosition(w/2, h/2 + 145);
+      
+      this.gameOverTitle.setPosition(w/2, h/2 - 30);
+      this.gameOverStats.setPosition(w/2, h/2 + 15);
+      this.gameOverRestart.setPosition(w/2, h/2 + 70);
+      
+      if (this.burstLevelUp && this.burstLevelUp.active) {
+        this.burstLevelUp.setPosition(w/2, this.burstLevelUp.y);
+      }
+    });
 
     this.buildFloor(true);
     this.refreshHUD();
@@ -1527,14 +1565,16 @@ export class GameScene extends Phaser.Scene {
     this.tweens.add({
       targets: this.overlayFade, alpha: 1, duration: 400,
       onComplete: () => {
-        const ascText = this.add.text(240, 210, 'ASCENDING...', {
+        const cx = this.scale.width / 2;
+        const cy = this.scale.height / 2;
+        const ascText = this.add.text(cx, cy - 30, 'ASCENDING...', {
           fontFamily: 'monospace', fontSize: '16px', color: '#88ddff'
         }).setOrigin(0.5).setScrollFactor(0).setDepth(305).setAlpha(0);
 
         this.tweens.add({
           targets: ascText, alpha: 1, duration: 200,
           onComplete: () => {
-            const floorText = this.add.text(240, 240,
+            const floorText = this.add.text(cx, cy,
               `FLOOR ${targetFloor}`, {
               fontFamily: 'monospace', fontSize: '36px', color: '#88ddff'
             }).setOrigin(0.5).setScrollFactor(0).setDepth(305).setScale(0.5);
@@ -1600,9 +1640,11 @@ export class GameScene extends Phaser.Scene {
       alpha: 1,
       duration: 400,
       onComplete: () => {
+        const cx = this.scale.width / 2;
+        const cy = this.scale.height / 2;
         // Step 2: "DESCENDING..." text
         const descText = this.add
-          .text(240, 210, "DESCENDING...", {
+          .text(cx, cy - 30, "DESCENDING...", {
             fontFamily: "monospace",
             fontSize: "16px",
             color: "#888888",
@@ -1628,7 +1670,7 @@ export class GameScene extends Phaser.Scene {
                     : "— THE ABYSS —";
 
             const floorText = this.add
-              .text(240, 240, `FLOOR ${this.floor}`, {
+              .text(cx, cy, `FLOOR ${this.floor}`, {
                 fontFamily: "monospace",
                 fontSize: "36px",
                 color: "#f0c040",
@@ -1639,7 +1681,7 @@ export class GameScene extends Phaser.Scene {
               .setScale(0.5);
 
             const biomeText = this.add
-              .text(240, 278, biome, {
+              .text(cx, cy + 38, biome, {
                 fontFamily: "monospace",
                 fontSize: "14px",
                 color: "#c8b8e8",
@@ -1711,9 +1753,11 @@ export class GameScene extends Phaser.Scene {
 
   showLevelUpChoice(onDone) {
     this.playerStatPoints += 2;
+    const cx = this.scale.width / 2;
+    const cy = this.scale.height / 2;
 
     const burst = this.add
-      .text(240, 200, `LEVEL ${this.playerLevel}!  +2 PTS`, {
+      .text(cx, cy - 40, `LEVEL ${this.playerLevel}!  +2 PTS`, {
         fontFamily: "monospace",
         fontSize: "22px",
         color: "#f0c040",
@@ -1722,10 +1766,12 @@ export class GameScene extends Phaser.Scene {
       .setScrollFactor(0)
       .setDepth(340)
       .setScale(0.6);
+      
+    this.burstLevelUp = burst;
 
     this.tweens.add({
       targets: burst,
-      y: 160,
+      y: cy - 80,
       scale: 1.0,
       duration: 400,
       ease: "Back.Out",
@@ -1733,7 +1779,7 @@ export class GameScene extends Phaser.Scene {
         this.tweens.add({
           targets: burst,
           alpha: 0,
-          y: 130,
+          y: cy - 110,
           duration: 600,
           delay: 600,
           onComplete: () => burst.destroy(),

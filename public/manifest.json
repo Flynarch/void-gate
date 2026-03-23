@@ -1,0 +1,17 @@
+{
+  "name": "Void Gate",
+  "short_name": "VoidGate",
+  "description": "Enter the Gate. Become the Void.",
+  "start_url": "/",
+  "display": "fullscreen",
+  "orientation": "portrait",
+  "background_color": "#0a0a0f",
+  "theme_color": "#0a0a0f",
+  "icons": [
+    {
+      "src": "/favicon.svg",
+      "sizes": "any",
+      "type": "image/svg+xml"
+    }
+  ]
+}
