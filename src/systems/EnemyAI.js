@@ -3,7 +3,8 @@ import { GW, GH, ENEMY_DETECT_RADIUS, SEARCH_MAX_TURNS, PATH_CACHE_TURNS } from 
 import { findPath, hasLOS, chebyshev, manhattan } from "../utils/pathfinding.js";
 
 export function enemyCanSeePlayer(scene, e) {
-  if (chebyshev(e.gx, e.gy, scene.px, scene.py) > ENEMY_DETECT_RADIUS)
+  const radius = e.detectRadius || ENEMY_DETECT_RADIUS;
+  if (chebyshev(e.gx, e.gy, scene.px, scene.py) > radius)
     return false;
   return hasLOS(scene.grid, e.gx, e.gy, scene.px, scene.py);
 }
@@ -43,19 +44,16 @@ export function runEnemyTurn(scene, onAllEnemiesDone) {
       return;
     }
 
-    const dist = manhattan(e.gx, e.gy, scene.px, scene.py);
-    if (dist === 1) {
-      scene.spawnDamageNumber(scene.px, scene.py, `-${e.atk}`, "#ff4444");
-      scene.applyPlayerDamage(Math.max(1, e.atk - scene.playerDef), () => {
-        if (scene.playerHp <= 0) {
-          onAllEnemiesDone();
-          return;
-        }
+    // Zombie slow: skip every other turn
+    if (e.behavior === "tank") {
+      e.slowTick = (e.slowTick || 0) + 1;
+      if (e.slowTick % 2 === 0) {
         runAt(i + 1);
-      });
-      return;
+        return;
+      }
     }
 
+    const dist = manhattan(e.gx, e.gy, scene.px, scene.py);
     const canSee = enemyCanSeePlayer(scene, e);
     const prevAiState = e.aiStatePrev !== undefined ? e.aiStatePrev : e.aiState;
 
@@ -208,6 +206,70 @@ export function runEnemyTurn(scene, onAllEnemiesDone) {
       }
 
       scene.tweenEnemyStep(e, nextS.x, nextS.y, () => runAt(i + 1));
+      return;
+    }
+
+    // ARCHER: ranged attack jika dalam range 1-5 dan punya LOS
+    if (e.behavior === "ranged" && e.aiState !== "idle") {
+      const archRange = e.preferredRange || 4;
+      if (
+        dist <= archRange &&
+        dist >= 2 &&
+        hasLOS(scene.grid, e.gx, e.gy, scene.px, scene.py)
+      ) {
+        const dmg = Math.max(1, e.atk - scene.playerDef);
+        scene.spawnArrowProjectile(
+          e.gx,
+          e.gy,
+          scene.px,
+          scene.py,
+          "#ffaa00",
+          () => {
+            scene.spawnDamageNumber(scene.px, scene.py, `-${dmg}`, "#ffaa00");
+            scene.applyPlayerDamage(dmg, () => {
+              if (scene.playerHp <= 0) {
+                onAllEnemiesDone();
+                return;
+              }
+              runAt(i + 1);
+            });
+          },
+        );
+        return;
+      }
+
+      // Archer kiting: kalau player terlalu dekat (dist < 2), mundur dulu
+      if (dist < 2) {
+        const dirs = [[0, 1], [0, -1], [1, 0], [-1, 0]];
+        Phaser.Math.RND.shuffle(dirs);
+        let retreated = false;
+        for (const [dx, dy] of dirs) {
+          const nx = e.gx + dx;
+          const ny = e.gy + dy;
+          if (nx < 0 || nx >= GW || ny < 0 || ny >= GH) continue;
+          if (scene.grid[ny][nx] !== 0) continue;
+          if (scene.enemyAt(nx, ny)) continue;
+          const newDist = chebyshev(nx, ny, scene.px, scene.py);
+          if (newDist > dist) {
+            scene.tweenEnemyStep(e, nx, ny, () => runAt(i + 1));
+            retreated = true;
+            break;
+          }
+        }
+        if (retreated) return;
+      }
+    }
+
+    // MELEE: attack kalau adjacent
+    if (dist === 1) {
+      scene.spawnDamageNumber(scene.px, scene.py, `-${e.atk}`, "#ff4444");
+      scene.applyPlayerDamage(Math.max(1, e.atk - scene.playerDef), () => {
+        if (scene.playerHp <= 0) {
+          onAllEnemiesDone();
+          return;
+        }
+        runAt(i + 1);
+      });
       return;
     }
 

@@ -17,6 +17,8 @@ import {
   SHAKE_HIT_INTENSITY,
   SHAKE_DEATH_MS,
   SHAKE_DEATH_INTENSITY,
+  ENEMY_TYPES,
+  FLOOR_ENEMY_POOL,
 } from "../data/constants.js";
 import { ITEMS, rollLoot } from "../data/items.js";
 import { generateDungeon } from "../utils/dungeonGenerator.js";
@@ -48,6 +50,8 @@ export class GameScene extends Phaser.Scene {
     this.playerGold = 0;
     this.groundItems = [];
     this.floorStates = new Map();
+    this.pendingAttackTarget = null;
+    this._highlightedEnemy = null;
 
     this.tileSprites = [];
     this.enemies = [];
@@ -373,13 +377,46 @@ export class GameScene extends Phaser.Scene {
         return;
       if (this.processingTurn) return;
 
+      // Wait turn: Space atau titik
+      if (e.key === " " || e.key === ".") {
+        this.doWaitTurn();
+        return;
+      }
+
       let dx = 0;
       let dy = 0;
-      if (e.key === "w" || e.key === "W" || e.key === "ArrowUp") dy = -1;
-      else if (e.key === "s" || e.key === "S" || e.key === "ArrowDown") dy = 1;
-      else if (e.key === "a" || e.key === "A" || e.key === "ArrowLeft") dx = -1;
-      else if (e.key === "d" || e.key === "D" || e.key === "ArrowRight") dx = 1;
-      else return;
+
+      switch (e.key) {
+        // Cardinal — WASD + Arrow
+        case "w": case "W": case "ArrowUp":    dy = -1; break;
+        case "s": case "S": case "ArrowDown":  dy =  1; break;
+        case "a": case "A": case "ArrowLeft":  dx = -1; break;
+        case "d": case "D": case "ArrowRight": dx =  1; break;
+
+        // Diagonal — Q/E/Z/C
+        case "q": case "Q": dx = -1; dy = -1; break;
+        case "e": case "E": dx =  1; dy = -1; break;
+        case "z": case "Z": dx = -1; dy =  1; break;
+        case "c": case "C": dx =  1; dy =  1; break;
+
+        // Numpad (NumLock on)
+        case "7": case "Numpad7": dx = -1; dy = -1; break;
+        case "8": case "Numpad8": dx =  0; dy = -1; break;
+        case "9": case "Numpad9": dx =  1; dy = -1; break;
+        case "4": case "Numpad4": dx = -1; dy =  0; break;
+        case "6": case "Numpad6": dx =  1; dy =  0; break;
+        case "1": case "Numpad1": dx = -1; dy =  1; break;
+        case "2": case "Numpad2": dx =  0; dy =  1; break;
+        case "3": case "Numpad3": dx =  1; dy =  1; break;
+        case "5": case "Numpad5":
+          // Numpad 5 = wait turn
+          this.doWaitTurn();
+          return;
+
+        default: return;
+      }
+
+      if (dx === 0 && dy === 0) return;
 
       this.tryPlayerMove(dx, dy);
     });
@@ -391,20 +428,74 @@ export class GameScene extends Phaser.Scene {
       if (this.isGameOver) return;
       if (this.profileOverlayOpen) return;
 
-      // Convert screen coords ke world coords
-      const cam = this.cameras.main;
-      const worldX = pointer.x / cam.zoom + cam.scrollX;
-      const worldY = pointer.y / cam.zoom + cam.scrollY;
-      const tx = Math.floor(worldX / TILE);
-      const ty = Math.floor(worldY / TILE);
+      // Gunakan pointer.worldX/worldY — Phaser handle DPR dan zoom otomatis
+      const tx = Math.floor(pointer.worldX / TILE);
+      const ty = Math.floor(pointer.worldY / TILE);
 
       if (tx < 0 || tx >= GW || ty < 0 || ty >= GH) return;
       if (this.grid[ty][tx] === 1) return; // wall
 
-      // Kalau click tepat 1 tile di sebelah → langsung move
+      // CEK: apakah tap di enemy?
+      const tappedEnemy = this.enemyAt(tx, ty);
+
+      if (tappedEnemy && tappedEnemy.hp > 0) {
+        // Cek LOS — hanya bisa inspect/attack enemy yang visible
+        const visible = tappedEnemy.sprite.visible && tappedEnemy.sprite.alpha > 0.3;
+        if (!visible) {
+          // Enemy tidak kelihatan, treat as move saja
+        } else if (this.pendingAttackTarget === tappedEnemy) {
+          // TAP KEDUA di enemy yang sama → ATTACK
+          this.clearEnemyHighlight();
+          this.clearInfoStrip();
+          const dx = tx - this.px;
+          const dy = ty - this.py;
+          if (Math.abs(dx) <= 1 && Math.abs(dy) <= 1) {
+            // Adjacent → langsung attack
+            this.tryPlayerMove(dx, dy);
+          } else {
+            // Tidak adjacent → move 1 step ke arah enemy
+            const path = findPath(this.px, this.py, tx, ty, (x, y) => {
+              if (x < 0 || x >= GW || y < 0 || y >= GH) return false;
+              if (this.grid[y][x] !== 0) return false;
+              return true;
+            });
+            if (path.length > 0) {
+              const step = path[0];
+              this.tryPlayerMove(step.x - this.px, step.y - this.py);
+            }
+          }
+          return;
+        } else {
+          // TAP PERTAMA di enemy → INSPECT mode
+          this.clearEnemyHighlight();
+          this.pendingAttackTarget = tappedEnemy;
+          this.highlightEnemy(tappedEnemy);
+          const info = this.getEnemyInfoText(tappedEnemy);
+          this.updateInfoStrip(info.main, info.sub, "#ff9999");
+          return;
+        }
+      }
+
+      // Tap di tile kosong atau item → cancel pending attack
+      if (this.pendingAttackTarget) {
+        this.clearEnemyHighlight();
+        this.clearInfoStrip();
+      }
+
+      // CEK: item di ground — tampilkan info (pickup otomatis saat walk ke tile-nya)
+      const groundItem = (this.groundItems || []).find(
+        (it) => it.gx === tx && it.gy === ty && it.sprite && it.sprite.active
+      );
+      if (groundItem) {
+        const info = this.getItemInfoText(groundItem);
+        this.updateInfoStrip(info.main, info.sub, "#aaffaa");
+        // Tetap lanjut move ke tile item (auto pickup)
+      }
+
+      // MOVE normal
       const dx = tx - this.px;
       const dy = ty - this.py;
-      if (Math.abs(dx) + Math.abs(dy) === 1) {
+      if (Math.abs(dx) <= 1 && Math.abs(dy) <= 1 && (dx !== 0 || dy !== 0)) {
         this.tryPlayerMove(dx, dy);
         return;
       }
@@ -420,16 +511,32 @@ export class GameScene extends Phaser.Scene {
 
       // Move 1 step saja
       const step = path[0];
-      const sdx = step.x - this.px;
-      const sdy = step.y - this.py;
-      this.tryPlayerMove(sdx, sdy);
-
-      // Visual: tampilkan path highlight singkat
+      this.tryPlayerMove(step.x - this.px, step.y - this.py);
       this.showClickPath(path);
     });
+
+    this.createInfoStrip();
+    this.waitBtn = this.add.text(14, H - 14, "⏸", {
+      fontFamily: "monospace",
+      fontSize: "18px",
+      color: "#888888",
+      backgroundColor: "#111111",
+      padding: { x: 6, y: 4 },
+    })
+      .setScrollFactor(0)
+      .setDepth(200)
+      .setOrigin(0, 1)
+      .setInteractive({ useHandCursor: true })
+      .on("pointerdown", (pointer, lx, ly, event) => {
+        if (event) event.stopPropagation();
+        this.doWaitTurn();
+      })
+      .on("pointerover", () => this.waitBtn.setColor("#ffffff"))
+      .on("pointerout", () => this.waitBtn.setColor("#888888"));
   }
 
   buildFloor(firstBuild = false) {
+    this.clearEnemyHighlight();
     this.fogLayer.clear();
     for (const item of this.groundItems || []) {
       if (item.sprite) item.sprite.destroy();
@@ -604,12 +711,36 @@ export class GameScene extends Phaser.Scene {
         );
         spr.setDepth(56);
         spr.body.setSize(16, 16);
+        const typeDef = ENEMY_TYPES[es.type || "skeleton"];
+        if (typeDef) {
+          spr.setTint(typeDef.tint);
+          if (es.type === "zombie") spr.setScale(1.2);
+          if (es.type === "archer") spr.setScale(0.85);
+        }
+        spr.setInteractive();
+        spr.on("pointerover", () => {
+          if (this.processingTurn) return;
+          const enemyData = this.enemies.find(e => e.sprite === spr && e.hp > 0);
+          if (!enemyData) return;
+          const info = this.getEnemyInfoText(enemyData);
+          this.updateInfoStrip(info.main, info.sub, "#ff9999");
+        });
+        spr.on("pointerout", () => {
+          if (this.pendingAttackTarget) return;
+          this.clearInfoStrip();
+        });
         this.enemies.push({
           sprite: spr,
           gx: es.gx,
           gy: es.gy,
           hp: es.hp,
           atk: es.atk,
+          type: es.type || "skeleton",
+          behavior: es.behavior || "aggressive",
+          speedMult: es.speedMult || 1.0,
+          detectRadius: es.detectRadius || 6,
+          preferredRange: es.preferredRange || 0,
+          slowTick: es.slowTick || 0,
           cachedPath: [],
           pathCacheTurn: -1000,
           aiState: es.aiState,
@@ -687,8 +818,8 @@ export class GameScene extends Phaser.Scene {
     this.cameras.main.startFollow(this.player, true, 1, 1);
     this.cameras.main.centerOn(this.player.x, this.player.y);
 
-    const enemyHp = ENEMY_BASE_HP + (this.floor - 1) * 3;
-    const enemyAtk = ENEMY_BASE_ATK + (this.floor - 1);
+    const baseHp = ENEMY_BASE_HP + (this.floor - 1) * 3;
+    const baseAtk = ENEMY_BASE_ATK + (this.floor - 1);
     const enemyCountTarget = Math.min(3 + this.floor, 12);
     const safeRoom = this.rooms[0];
     const floorTiles = [];
@@ -696,7 +827,6 @@ export class GameScene extends Phaser.Scene {
       for (let x = 0; x < GW; x++) {
         if (grid[y][x] !== 0) continue;
         if (x === this.px && y === this.py) continue;
-        // Exclude safe room (rooms[0]) sepenuhnya
         if (x >= safeRoom.x && x < safeRoom.x + safeRoom.w &&
             y >= safeRoom.y && y < safeRoom.y + safeRoom.h) continue;
         floorTiles.push({ x, y });
@@ -704,22 +834,50 @@ export class GameScene extends Phaser.Scene {
     }
     Phaser.Math.RND.shuffle(floorTiles);
     const spawnCount = Math.min(enemyCountTarget, floorTiles.length);
+    const pool = FLOOR_ENEMY_POOL[this.floor] || ["skeleton"];
 
     for (let i = 0; i < spawnCount; i++) {
       const pos = floorTiles[i];
+      const typeKey = pool[Phaser.Math.Between(0, pool.length - 1)];
+      const typeDef = ENEMY_TYPES[typeKey];
+
       const spr = this.physics.add.sprite(
         pos.x * TILE + TILE / 2,
         pos.y * TILE + TILE / 2,
         "enemy",
       );
       spr.setDepth(56);
+      spr.setTint(typeDef.tint);
       spr.body.setSize(16, 16);
+      spr.setInteractive();
+      spr.on("pointerover", () => {
+        if (this.processingTurn) return;
+        const enemyData = this.enemies.find(e => e.sprite === spr && e.hp > 0);
+        if (!enemyData) return;
+        const info = this.getEnemyInfoText(enemyData);
+        this.updateInfoStrip(info.main, info.sub, "#ff9999");
+      });
+      spr.on("pointerout", () => {
+        if (this.pendingAttackTarget) return;
+        this.clearInfoStrip();
+      });
+
+      if (typeKey === "zombie") spr.setScale(1.2);
+      if (typeKey === "archer") spr.setScale(0.85);
+
       this.enemies.push({
         sprite: spr,
         gx: pos.x,
         gy: pos.y,
-        hp: enemyHp,
-        atk: enemyAtk,
+        hp: Math.round(baseHp * typeDef.hpMult),
+        maxHp: Math.round(baseHp * typeDef.hpMult),
+        atk: Math.round(baseAtk * typeDef.atkMult),
+        type: typeKey,
+        behavior: typeDef.behavior,
+        speedMult: typeDef.speedMult,
+        detectRadius: typeDef.detectRadius,
+        preferredRange: typeDef.preferredRange || 0,
+        slowTick: 0,
         cachedPath: [],
         pathCacheTurn: -1000,
         aiState: "idle",
@@ -1061,6 +1219,132 @@ export class GameScene extends Phaser.Scene {
     });
   }
 
+  createInfoStrip() {
+    const { width: W, height: H } = this.scale;
+
+    this.infoStripBg = this.add.rectangle(W / 2, H - 18, W, 36, 0x000000, 0.82)
+      .setScrollFactor(0)
+      .setDepth(200)
+      .setOrigin(0.5, 0.5);
+
+    this.infoStripMain = this.add.text(W / 2, H - 22, "", {
+      fontFamily: "monospace",
+      fontSize: "11px",
+      color: "#ffffff",
+    }).setScrollFactor(0).setDepth(201).setOrigin(0.5, 0.5);
+
+    this.infoStripSub = this.add.text(W / 2, H - 10, "Tap to move  •  Tap enemy to inspect", {
+      fontFamily: "monospace",
+      fontSize: "9px",
+      color: "#aaaaaa",
+    }).setScrollFactor(0).setDepth(201).setOrigin(0.5, 0.5);
+
+    this.infoStripDefaultSub = "Tap to move  •  Tap enemy to inspect";
+  }
+
+  updateInfoStrip(main = "", sub = "", mainColor = "#ffffff") {
+    if (!this.infoStripMain) return;
+    this.infoStripMain.setText(main);
+    this.infoStripMain.setColor(mainColor);
+    this.infoStripSub.setText(sub || this.infoStripDefaultSub);
+  }
+
+  clearInfoStrip() {
+    if (!this.infoStripMain) return;
+    this.infoStripMain.setText("");
+    this.infoStripSub.setText(this.infoStripDefaultSub);
+  }
+
+  highlightEnemy(e) {
+    this.clearEnemyHighlight();
+    if (!e || !e.sprite) return;
+    e.sprite.setTint(0xffffff);
+    e._highlighted = true;
+    this._highlightedEnemy = e;
+  }
+
+  clearEnemyHighlight() {
+    if (this._highlightedEnemy && this._highlightedEnemy.sprite) {
+      const ENEMY_TYPES = { skeleton: 0xdddddd, zombie: 0x4a7c45, archer: 0xe8a020 };
+      const originalTint = ENEMY_TYPES[this._highlightedEnemy.type] || 0xff6666;
+      this._highlightedEnemy.sprite.setTint(originalTint);
+      this._highlightedEnemy._highlighted = false;
+    }
+    this._highlightedEnemy = null;
+    this.pendingAttackTarget = null;
+  }
+
+  getEnemyInfoText(e) {
+    if (!e) return { main: "", sub: "" };
+    const typeLabels = {
+      skeleton: "Skeleton",
+      zombie: "Zombie",
+      archer: "Skeleton Archer",
+    };
+    const behaviorLabels = {
+      aggressive: "Aggressive",
+      tank: "Slow · Tanky",
+      ranged: "Ranged · Kiter",
+    };
+    const name = typeLabels[e.type] || "Enemy";
+    const beh = behaviorLabels[e.behavior] || "";
+    const hp = `HP: ${e.hp}/${e.maxHp || e.hp}`;
+    const atk = `ATK: ${e.atk}`;
+    return {
+      main: `💀 ${name}  ${hp}  ${atk}`,
+      sub: beh ? `${beh}  •  Tap again to attack` : "Tap again to attack",
+    };
+  }
+
+  getItemInfoText(item) {
+    if (!item) return { main: "", sub: "" };
+    return {
+      main: `📦 ${item.label || item.type}`,
+      sub: item.desc || "Auto pickup on walk",
+    };
+  }
+
+  doWaitTurn() {
+    if (this.processingTurn) return;
+    if (this.isTransitioningFloor) return;
+    if (this.isGameOver) return;
+    if (this.profileOverlayOpen) return;
+    this.processingTurn = true;
+    this.spawnFloatingText(this.px, this.py, "WAIT", "#888888");
+    this.finishPlayerTurn();
+  }
+
+  isSurpriseAttack(enemy, dx, dy) {
+    if (enemy.aiState === "search") return true;
+    if (enemy.aiState === "sleeping") return true;
+    if (enemy.aiState === "idle") return true;
+    return false;
+  }
+
+  spawnArrowProjectile(fromX, fromY, toX, toY, color, onComplete) {
+    const arrow = this.add.text(
+      fromX * TILE + TILE / 2,
+      fromY * TILE + TILE / 2,
+      "→",
+      { fontFamily: "monospace", fontSize: "12px", color: color || "#ffaa00" }
+    ).setDepth(70).setOrigin(0.5);
+
+    const angle = Phaser.Math.Angle.Between(fromX, fromY, toX, toY);
+    arrow.setRotation(angle);
+
+    this.tweens.add({
+      targets: arrow,
+      x: toX * TILE + TILE / 2,
+      y: toY * TILE + TILE / 2,
+      duration: 180,
+      ease: "Linear",
+      onComplete: () => {
+        arrow.destroy();
+        if (onComplete) onComplete();
+      },
+    });
+  }
+
   enemyAt(tx, ty) {
     return (
       this.enemies.find((e) => e.hp > 0 && e.gx === tx && e.gy === ty) || null
@@ -1188,6 +1472,12 @@ export class GameScene extends Phaser.Scene {
       gy: e.gy,
       hp: e.hp,
       atk: e.atk,
+      type: e.type || "skeleton",
+      behavior: e.behavior || "aggressive",
+      speedMult: e.speedMult || 1.0,
+      detectRadius: e.detectRadius || 6,
+      preferredRange: e.preferredRange || 0,
+      slowTick: e.slowTick || 0,
       aiState: e.aiState,
       lastKnownPx: e.lastKnownPx,
       lastKnownPy: e.lastKnownPy,
@@ -1577,6 +1867,10 @@ export class GameScene extends Phaser.Scene {
   }
 
   playEnemyDeath(enemyData, onComplete) {
+    if (this.pendingAttackTarget === enemyData) {
+      this.clearEnemyHighlight();
+      this.clearInfoStrip();
+    }
     if (enemyData.stateIcon) {
       this.tweens.killTweensOf(enemyData.stateIcon);
       enemyData.stateIcon.destroy();
@@ -1632,16 +1926,32 @@ export class GameScene extends Phaser.Scene {
     const ny = this.py + dy;
     if (nx < 0 || nx >= GW || ny < 0 || ny >= GH) return;
     if (this.grid[ny][nx] === 1) return;
+    // Diagonal: cegah gerak diagonal jika kedua tile cardinal-nya adalah wall
+    // (menghindari "clipping" sudut dinding)
+    if (dx !== 0 && dy !== 0) {
+      const blockedX = this.grid[this.py][this.px + dx] === 1;
+      const blockedY = this.grid[this.py + dy][this.px] === 1;
+      if (blockedX && blockedY) return;
+    }
 
     this.processingTurn = true;
 
     const targetEnemy = this.enemyAt(nx, ny);
     if (targetEnemy) {
-      const dmg = Math.max(1, this.playerAtk);
+      const isSurprise = this.isSurpriseAttack(targetEnemy, dx, dy);
+      const baseDmg = Math.max(1, this.playerAtk);
+      const dmg = isSurprise ? baseDmg * 2 : baseDmg;
+
+      // Visual feedback surprise
+      if (isSurprise) {
+        this.spawnDamageNumber(nx, ny, `CRITICAL! -${dmg}`, "#ffdd00");
+        this.cameras.main.flash(120, 255, 220, 50);
+      } else {
+        this.spawnDamageNumber(nx, ny, `-${dmg}`, "#ffffff");
+      }
       const ox = this.px;
       const oy = this.py;
       targetEnemy.hp -= dmg;
-      this.spawnDamageNumber(nx, ny, `-${dmg}`, "#ffffff");
       if (targetEnemy.hp <= 0) {
         this.px = nx;
         this.py = ny;
@@ -1755,6 +2065,16 @@ export class GameScene extends Phaser.Scene {
     if (this.burstLevelUp && this.burstLevelUp.active) {
       this.burstLevelUp.setPosition(w/2, this.burstLevelUp.y);
     }
+
+    const stripW = w;
+    const stripH = h;
+    if (this.infoStripBg) {
+      this.infoStripBg.setPosition(stripW / 2, stripH - 18);
+      this.infoStripBg.setSize(stripW, 36);
+    }
+    if (this.infoStripMain) this.infoStripMain.setPosition(stripW / 2, stripH - 22);
+    if (this.infoStripSub) this.infoStripSub.setPosition(stripW / 2, stripH - 10);
+    if (this.waitBtn) this.waitBtn.setPosition(14, h - 14);
 
     if (this.player && this.player.active) {
       this.cameras.main.centerOn(this.player.x, this.player.y);

@@ -19,3 +19,47 @@ export const SHAKE_HIT_MS = 150;
 export const SHAKE_HIT_INTENSITY = 0.008;
 export const SHAKE_DEATH_MS = 400;
 export const SHAKE_DEATH_INTENSITY = 0.02;
+
+export const ENEMY_TYPES = {
+  skeleton: {
+    key: "skeleton",
+    label: "Skeleton",
+    hpMult: 0.7,
+    atkMult: 0.9,
+    speedMult: 1.0,
+    tint: 0xdddddd,
+    detectRadius: 7,
+    behavior: "aggressive",
+  },
+  zombie: {
+    key: "zombie",
+    label: "Zombie",
+    hpMult: 1.8,
+    atkMult: 1.4,
+    speedMult: 0.5,
+    tint: 0x4a7c45,
+    detectRadius: 4,
+    behavior: "tank",
+  },
+  archer: {
+    key: "archer",
+    label: "Skeleton Archer",
+    hpMult: 0.6,
+    atkMult: 0.8,
+    speedMult: 1.0,
+    tint: 0xe8a020,
+    detectRadius: 8,
+    behavior: "ranged",
+    preferredRange: 4,
+    arrowDamageColor: "#ffaa00",
+  },
+};
+
+export const FLOOR_ENEMY_POOL = {
+  1: ["skeleton", "zombie"],
+  2: ["skeleton", "zombie"],
+  3: ["skeleton", "zombie", "archer"],
+  4: ["skeleton", "zombie", "archer"],
+  5: ["skeleton", "zombie", "archer"],
+  6: ["skeleton", "zombie", "archer"],
+};
